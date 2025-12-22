@@ -1,0 +1,14 @@
+ARCHITECTURE NOTES
+==================
+
+1. MEMORY MAPPING
+   - CHIP-8 has 4KB memory.
+   - 0x000 to 0x1FF is reserved for interpreter (we can use this for font data).
+   - 0x200 starts the program (ROM).
+
+2. RISC-V PARALLELS
+   - The CHIP-8 "Delay Timer" acts like a hardware interrupt counter.
+   - V0-VF registers need to be unsigned (uint8_t).
+
+3. TODO
+   - Define the Fetch-Decode-Execute loop in main.cpp.
