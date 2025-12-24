@@ -19,7 +19,7 @@ It is designed to be a tool for understanding low-level computing concepts, feat
 * **UI Library:** Ncurses (Terminal User Interface)
 * **Platform:** Linux (Mint/Debian)
 
-## 🌟 Unique Features (Planned)
+## Unique Features (Planned)
 This project goes beyond standard emulation by integrating advanced debugging tools directly into the terminal:
 
 * ** Time Travel Debugging (Reverse Step):**
