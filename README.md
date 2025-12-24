@@ -48,7 +48,7 @@ This project is being architected in parallel with my **Computer Engineering** c
     * Adding Debug features (Pause, Step, Rewind).
 
 ##  References
-* [Cowgod's Chip-8 Technical Reference](http://devernay.free.fr/hacks/chip8/C8TECH.HTM)
+* [Cowgod's Chip-8 Technical Reference]([http://devernay.free.fr/hacks/chip8/C8TECH.HTM](http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#2.0))
 * *Digital Systems Course* - RISC-V Architecture parallels.
 * *Intro to Systems Programming*
 
