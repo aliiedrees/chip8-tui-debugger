@@ -2,13 +2,58 @@ ARCHITECTURE NOTES
 ==================
 
 1. MEMORY MAPPING
-   - CHIP-8 has 4KB memory.
+   - CHIP-8 has 4KB memory(RAM).
    - 0x000 to 0x1FF is reserved for interpreter (we can use this for font data).
    - 0x200 starts the program (ROM).
 
 2. RISC-V PARALLELS
    - The CHIP-8 "Delay Timer" acts like a hardware interrupt counter.
    - V0-VF registers need to be unsigned (uint8_t).
+   - There is also two special purpse registers (delay and sound timers).
+   - PC should be 16-bit.
+   - SP 8-bit.
+   - stack array is 16 16-bit values (chip-8 allows only up to 16 nested subroutines.
 
-3. TODO
-   - Define the Fetch-Decode-Execute loop in main.cpp.
+3. CPU STATE DEFINITION (Draft)
+   ----------------------------
+   To implement "Time Travel," we must capture this entire struct 60 times per second.
+
+   struct Chip8State {
+       // 1. MEMORY
+       // 4KB of RAM. Each cell is 1 byte.
+       uint8_t memory[4096]; 
+
+       // 2. REGISTERS
+       // 16 general purpose registers (V0 - VF).
+       uint8_t V[16]; 
+
+       // 3. POINTERS
+       // Index Register (I) - Holds memory addresses.
+       uint16_t I; 
+       // Program Counter (PC) - Holds the address of next instruction.
+       uint16_t PC; 
+
+       // 4. THE STACK
+       // Stores return addresses for subroutines.
+       // CHIP-8 stack is an array of 16-bit addresses.
+       uint16_t stack[16];
+       // Stack Pointer (SP) - Points to current level (0-15).
+       uint8_t SP;
+
+       // 5. TIMERS
+       // They count down at 60Hz.
+       uint8_t delay_timer;
+       uint8_t sound_timer;
+       
+       // 6. INPUT
+       // Current state of the 16 keys (0x0 - 0xF). 1=Pressed, 0=Released.
+       uint8_t keypad[16];
+   };
+
+   TOTAL SIZE CALCULATION:
+   4096 (Mem) + 16 (Reg) + 2 (I) + 2 (PC) + 32 (Stack) + 1 (SP) + 2 (Timers) + 16 (Keypad)
+   = Approx 4167 bytes per snapshot.
+   
+   RING BUFFER CALCULATION:
+   For 10 seconds of rewind at 60Hz = 600 frames.
+   600 frames * 4167 bytes = ~2.5 MB of RAM. (acceptable).
