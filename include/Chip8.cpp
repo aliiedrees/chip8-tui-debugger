@@ -44,7 +44,7 @@ Chip8::Chip8()
     }
 }
 
-//   loadROM
+// loadROM
 void Chip8::LoadROM(const string& path){
     ifstream file(path, std::ios::ate | std::ios::binary);
 
@@ -71,3 +71,4 @@ void Chip8::LoadROM(const string& path){
         std::cerr << "FAILED to open ROM: " << path << std::endl;
     }
 }
+

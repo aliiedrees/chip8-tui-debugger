@@ -8,6 +8,7 @@ class Chip8 {
 private:
     static constexpr int MEMORY_SIZE = 4096;
     static constexpr int F = 16;
+    static constexpr int START_OF_PROGRAM = 0x200;
 public:
     uint8_t memory[MEMORY_SIZE]; //4KB RAM
     uint8_t V[F]; // 16 registers (V0-VF)
@@ -26,5 +27,5 @@ public:
     uint8_t keyboard[F]; // keyboard 0-F (in hex)
 
     Chip8(); // c'tor
-    void LoadROM(string path);
+    void LoadROM(const string& path); 
 };
