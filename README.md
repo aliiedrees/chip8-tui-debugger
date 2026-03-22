@@ -19,6 +19,19 @@ It is designed to be a tool for understanding low-level computing concepts, feat
 * **UI Library:** Ncurses (Terminal User Interface)
 * **Platform:** Linux (Mint/Debian)
 
+## Unique Features (Planned)
+This project goes beyond standard emulation by integrating advanced debugging tools directly into the terminal:
+
+* ** Time Travel Debugging (Reverse Step):**
+    * Utilizes a **Circular Buffer** data structure to store the last 600 CPU states.
+    * Allows the user to "rewind" execution frame-by-frame to catch elusive bugs.
+* ** Execution Heatmap:**
+    * Visualizes "hot" code paths in memory using color-coded overlays.
+    * Identifies performance bottlenecks and dead code in real-time.
+* ** Live Hex Injector:**
+    * Allows direct modification of RAM contents while the emulator is running.
+    * Useful for dynamic patching and testing memory exploits.
+
 ##  Development Roadmap
 This project is being architected in parallel with my **Computer Engineering** coursework (Digital Systems & RISC-V Architecture / Intro to Systems Programming).
 
@@ -35,7 +48,7 @@ This project is being architected in parallel with my **Computer Engineering** c
     * Adding Debug features (Pause, Step, Rewind).
 
 ##  References
-* [Cowgod's Chip-8 Technical Reference](http://devernay.free.fr/hacks/chip8/C8TECH.HTM)
+* [Cowgod's Chip-8 Technical Reference]([http://devernay.free.fr/hacks/chip8/C8TECH.HTM](http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#2.0))
 * *Digital Systems Course* - RISC-V Architecture parallels.
 * *Intro to Systems Programming*
 
