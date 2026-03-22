@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint> // to access 16/8 bit types
+#include <string>
+using std::string;
 
 class Chip8 {
 private:
@@ -24,4 +26,5 @@ public:
     uint8_t keyboard[F]; // keyboard 0-F (in hex)
 
     Chip8(); // c'tor
+    void LoadROM(string path);
 };

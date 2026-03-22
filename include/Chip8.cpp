@@ -1,4 +1,8 @@
 #include "Chip8.h"
+#include <fstream>
+#include <iostream>
+#include <string>
+using std::ifstream;
 
 // font array
 static constexpr unsigned int FONTSET_SIZE = 80;
@@ -24,7 +28,7 @@ static const uint8_t FONTSET[FONTSET_SIZE] = {
 
 // c'tor
 Chip8::Chip8()
-    : pc(0x200),
+    : pc(START_OF_PROGRAM),
       I(0),
       sp(0),
       dt(0),
@@ -37,5 +41,33 @@ Chip8::Chip8()
 {
     for (int i = 0; i < FONTSET_SIZE; i++){
         memory[i] = FONTSET[i];
+    }
+}
+
+//   loadROM
+void Chip8::LoadROM(const string& path){
+    ifstream file(path, std::ios::ate | std::ios::binary);
+
+    if (file.is_open()){
+        int max_size = MEMORY_SIZE - START_OF_PROGRAM;
+        std::streampos size = file.tellg(); // we are at the end (ate) so tellg will return size
+        if (size > max_size){ // check ROM size
+            std::cerr << "ROM file is too big! *max size of ROM is" << max_size << "*" << std::endl;
+            return;
+        }
+        //return to the beginnnig of file
+        file.seekg(0, std::ios::beg);
+
+        char c;
+        int address = START_OF_PROGRAM;
+        while (file.get(c)){
+            //no need to check we know size is good
+            memory[address] = static_cast<uint8_t>(c);
+            address++;
+        }
+        file.close();
+        std::cout << "ROM loaded successfully. size of ROM is " << size << " bytes." << std::endl;
+    } else {
+        std::cerr << "FAILED to open ROM: " << path << std::endl;
     }
 }
