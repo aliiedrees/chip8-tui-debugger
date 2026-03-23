@@ -339,7 +339,7 @@ void Chip8::IN_FX15(){
 }
 
 // LD ST, VX
-void Chip8::IN_FX15(){
+void Chip8::IN_FX18(){
     st = GetVX();
     pc += 2;
 }
@@ -501,6 +501,5 @@ void Chip8::Cycle() {
             break;
     }
 
-    if (dt > 0) --dt;
-    if (st > 0) --st;
+
 }
