@@ -256,7 +256,133 @@ void Chip8::IN_CXKK(){
 }
 
 // DRW VX, VY, nibble
+void Chip8::IN_DXYN(){
+    uint8_t vx = GetVX() % DISPLAY_WIDTH;
+    uint8_t vy = GetVY() % DISPLAY_HEIGHT;
+    uint8_t height = ir & 0xF;
+    V[F] = 0;
+    for (int row = 0; row < height; ++row) {
+        uint8_t spriteByte = memory[I + row];
 
+        for (int col = 0; col < BYTE; ++col) {
+            uint8_t spritePixel = spriteByte & (0x80 >> col);
+
+            int screenX = (vx + col) % DISPLAY_WIDTH;
+            int screenY = (vy + row) % DISPLAY_HEIGHT;
+            int index = screenX + (screenY * DISPLAY_WIDTH);
+
+            uint8_t& screenPixel = display[index];
+
+            if (spritePixel) {
+                if (screenPixel == 1) {
+                    V[F] = 1;
+                }
+                screenPixel ^= 1;
+            }
+        }
+    }
+    pc += 2;
+}
+
+// SKP VX
+void Chip8::IN_EX9E(){
+    uint8_t vx = GetVX();
+    if (vx > 0xFF){
+        return;
+    }
+    if(memory[vx]){
+        pc += 4;
+    } else {
+        pc += 2;
+    }
+}
+
+// SKNP VX
+void Chip8::IN_EXA1(){
+    uint8_t vx = GetVX();
+    if (vx > 0xFF){
+        return;
+    }
+    if(!memory[vx]){
+        pc += 4;
+    } else {
+        pc += 2;
+    }
+}
+
+// LS VX, DT
+void Chip8::IN_FX07(){
+    GetVX() = dt;
+    pc += 2;
+}
+
+// LD VX, K
+void Chip8::IN_FX0A(){
+    uint8_t vx = GetVX();
+    bool executed = false;
+    while(!executed){
+        for(int i = 0; i < F; ++i){
+            if(V[i]){
+                vx = i;
+                executed = true;
+                break;
+            }
+        }
+    }
+    pc += 2;
+}
+
+// LD DT, VX
+void Chip8::IN_FX15(){
+    dt = GetVX();
+    pc += 2;
+}
+
+// LD ST, VX
+void Chip8::IN_FX15(){
+    st = GetVX();
+    pc += 2;
+}
+
+// ADD I, VX
+void Chip8::IN_FX1E(){
+    I += GetVX();
+    pc += 2;
+}
+
+// LD F, VX
+void Chip8::IN_FX29(){
+    I = GetVX() * 5;
+    pc += 2;
+}
+
+// LD B, VX
+void Chip8::IN_FX33(){
+    uint8_t vx = GetVX();
+    memory[I] = vx / 100;
+    memory[I + 1] = (vx / 10) % 10;
+    memory[I + 2] = vx % 10;
+
+    pc += 2;
+}
+
+// LD [I], VX
+void Chip8::IN_FX55(){
+    uint8_t x = (ir & 0x0F00) >> 8;
+    for(int i = 0; i <= x; ++i){
+        memory[I + i] = V[i];
+    }
+    pc += 2;
+}
+
+// LD VX, [I]
+void Chip8::IN_FX65(){
+    uint8_t x = (ir & 0x0F00) >> 8;
+    for(int i = 0; i <= x; ++i){
+        V[i] = memory[I + i];
+    }
+    pc += 2;
+}
 
 
 // loadROM
@@ -288,26 +414,93 @@ void Chip8::LoadROM(const string& path){
 }
 
 // Cycle
-void Chip8::Cycle(){
+void Chip8::UnknownInstruction(const uint16_t& instruction) {
+    std::printf("Unknown Instruction: 0x%X at PC: 0x%X\n", instruction, pc - 2);
+}
+
+void Chip8::Cycle() {
     // fetch
     ir = (memory[pc] << 8) | memory[pc + 1];
-    uint16_t opcode = ir && 0xF000;
-    // decode
-    switch (opcode){
+
+
+    pc += 2;
+
+    // decode & execute
+    switch (ir & 0xF000) {
         case 0x0000:
-            switch (ir){
-                case 0x00E0: //CLS
-                    
+            switch (ir & 0x00FF) {
+                case 0xE0: IN_00E0(); break; // CLS
+                case 0xEE: IN_00EE(); break; // RET
+                default: UnknownInstruction(ir); break;
             }
-        case 0x1000: // jump
-            pc = ir && 0xFFF;
-        case 0x6000: // Vx = nn
-            V[(ir & 0x0F00) >> 8] = ir & 0x00FF;
-            pc += 2;
-        case 0x7000: // Vx += nn
-            V[(ir & 0x0F00) >> 8] += ir & 0x00FF;
-            pc += 2;
+            break;
+
+        case 0x1000: IN_1NNN(); break; // JP addr
+        case 0x2000: IN_2NNN(); break; // CALL addr
+        case 0x3000: IN_3XKK(); break; // SE Vx, byte
+        case 0x4000: IN_4XKK(); break; // SNE Vx, byte
         
+        case 0x5000:
+            if ((ir & 0x000F) == 0) IN_5XY0(); // SE Vx, Vy
+            else UnknownInstruction(ir);
+            break;
+
+        case 0x6000: IN_6XKK(); break; // LD Vx, byte
+        case 0x7000: IN_7XKK(); break; // ADD Vx, byte
+
+        case 0x8000:
+            switch (ir & 0x000F) {
+                case 0x0: IN_8XY0(); break; // LD Vx, Vy
+                case 0x1: IN_8XY1(); break; // OR Vx, Vy
+                case 0x2: IN_8XY2(); break; // AND Vx, Vy
+                case 0x3: IN_8XY3(); break; // XOR Vx, Vy
+                case 0x4: IN_8XY4(); break; // ADD Vx, Vy
+                case 0x5: IN_8XY5(); break; // SUB Vx, Vy
+                case 0x6: IN_8XY6(); break; // SHR Vx
+                case 0x7: IN_8XY7(); break; // SUBN Vx, Vy
+                case 0xE: IN_8XYE(); break; // SHL Vx
+                default: UnknownInstruction(ir); break;
+            }
+            break;
+
+        case 0x9000:
+            if ((ir & 0x000F) == 0) IN_9XY0(); // SNE Vx, Vy
+            else UnknownInstruction(ir);
+            break;
+
+        case 0xA000: IN_ANNN(); break; // LD I, addr
+        case 0xB000: IN_BNNN(); break; // JP V0, addr
+        case 0xC000: IN_CXKK(); break; // RND Vx, byte
+        case 0xD000: IN_DXYN(); break; // DRW Vx, Vy, nibble
+
+        case 0xE000:
+            switch (ir & 0x00FF) {
+                case 0x9E: IN_EX9E(); break; // SKP Vx
+                case 0xA1: IN_EXA1(); break; // SKNP Vx
+                default: UnknownInstruction(ir); break;
+            }
+            break;
+
+        case 0xF000:
+            switch (ir & 0x00FF) {
+                case 0x07: IN_FX07(); break; // LD Vx, DT
+                case 0x0A: IN_FX0A(); break; // LD Vx, K
+                case 0x15: IN_FX15(); break; // LD DT, Vx
+                case 0x18: IN_FX18(); break; // LD ST, Vx
+                case 0x1E: IN_FX1E(); break; // ADD I, Vx
+                case 0x29: IN_FX29(); break; // LD F, Vx
+                case 0x33: IN_FX33(); break; // LD B, Vx
+                case 0x55: IN_FX55(); break; // LD [I], Vx
+                case 0x65: IN_FX65(); break; // LD Vx, [I]
+                default: UnknownInstruction(ir); break;
+            }
+            break;
+
+        default:
+            UnknownInstruction(ir);
+            break;
     }
 
+    if (dt > 0) --dt;
+    if (st > 0) --st;
 }

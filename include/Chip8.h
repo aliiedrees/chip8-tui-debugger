@@ -2,6 +2,7 @@
 
 #include <cstdint> // to access 16/8 bit types
 #include <string>
+#include <random>
 using std::string;
 
 class Chip8 {
@@ -11,6 +12,7 @@ private:
     static constexpr int START_OF_PROGRAM = 0x200;
     static constexpr int DISPLAY_WIDTH = 64;
     static constexpr int DISPLAY_HEIGHT = 32;
+    static constexpr int BYTE = 8;
 
     void IN_00E0();
     void IN_00EE();
@@ -44,12 +46,16 @@ private:
     void IN_FX1E();
     void IN_FX29();
     void IN_FX33();
+    void IN_FX55();
     void IN_FX65();
 
     uint8_t& GetVX();
-    const uint8_t& Chip8::GetVX() const; 
-    uint8_t& Chip8::GetVY();
-    const uint8_t& Chip8::GetVY() const;
+    const uint8_t& GetVX() const; 
+    uint8_t& GetVY();
+    const uint8_t& GetVY() const;
+
+    void UnknownInstruction(const uint16_t& instruction);
+
 
     // random generator
     std::mt19937 generator;
