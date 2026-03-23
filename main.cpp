@@ -4,7 +4,7 @@
 #include <iostream>
 #include <thread>
 
-uint8_t keymap[17] = {
+uint8_t keymap[16] = {
     'x', '1', '2', '3', // 0, 1, 2, 3
     'q', 'w', 'e', 'a', // 4, 5, 6, 7
     's', 'd', 'z', 'c', // 8, 9, A, B
@@ -19,8 +19,7 @@ int main(int argc, char** argv){
 
     const int TICKS_PER_SECOND = 60;
     const int TICKS_PER_FRAME = 8;
-    const int FRAME_DURATION_MS = 1000 / TICKS_PER_SECOND;
-
+    const int FRAME_DURATION_US = 1000000 / TICKS_PER_SECOND;
     Chip8 chip8;
     chip8.LoadROM(argv[1]);
 
@@ -30,6 +29,8 @@ int main(int argc, char** argv){
     nodelay(stdscr, true);
     keypad(stdscr, true);
 
+    clear();
+    refresh();
     bool quit = false;
 
     while (!quit){
@@ -71,12 +72,13 @@ int main(int argc, char** argv){
         }
         
         
-    auto endTime = std::chrono::high_resolution_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime).count();
+        auto endTime = std::chrono::high_resolution_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime).count();
 
-    if (elapsed < FRAME_DURATION_MS) {
-        std::this_thread::sleep_for(std::chrono::microseconds(FRAME_DURATION_MS - elapsed));
-    }    }
+        if (elapsed < FRAME_DURATION_US) {
+        std::this_thread::sleep_for(std::chrono::microseconds(FRAME_DURATION_US - elapsed));
+        }
+    }
 
     endwin();
     std::cout << "Emulator Terminated Safely." << std::endl;

@@ -90,13 +90,13 @@ void Chip8::IN_2NNN(){
     if (sp >= F){
         std::cerr << "ERROR: Stack Overflow! Too many nested calls." << std::endl;
     }
-    stack[++sp] = pc;
-    pc += 2;
+    stack[++sp] = pc + 2;
+    pc = ir & 0x0FFF;
 }
 
 // SE VX, byte (skip next instruction if VX == KK)
 void Chip8::IN_3XKK(){
-    uint8_t vx = GetVX();
+    uint8_t& vx = GetVX();
     uint8_t byte = ir & 0x00FF;
     
     if (vx == byte){
@@ -108,7 +108,7 @@ void Chip8::IN_3XKK(){
 
 // SNE VX, byte (skip next instruction if VX != KK)
 void Chip8::IN_4XKK(){
-    uint8_t vx = GetVX();
+    uint8_t& vx = GetVX();
     uint8_t byte = ir & 0x00FF;
     
     if (vx != byte){
@@ -120,8 +120,8 @@ void Chip8::IN_4XKK(){
 
 // SE VX, VY (skip next instruction if VX == VY)
 void Chip8::IN_5XY0(){
-    uint8_t vx = GetVX();
-    uint8_t vy = GetVY();
+    uint8_t& vx = GetVX();
+    uint8_t& vy = GetVY();
 
     if (vx == vy){
         pc += 4;
@@ -132,64 +132,64 @@ void Chip8::IN_5XY0(){
 
 // LD VX, byte (set vx = kk)
 void Chip8::IN_6XKK(){
-    uint8_t vx = GetVX();
+    uint8_t& vx = GetVX();
     vx = ir & 0x00FF;
     pc += 2;
 }
 
 // ADD VX, byte
 void Chip8::IN_7XKK(){
-    uint8_t vx = GetVX();
+    uint8_t& vx = GetVX();
     vx += ir & 0x00FF;
     pc += 2;
 }
 
 // LD VX, VY (vx = vy)
 void Chip8::IN_8XY0(){
-    uint8_t vy = GetVY();
-    uint8_t vx = GetVX();
+    uint8_t& vy = GetVY();
+    uint8_t& vx = GetVX();
     vx = vy;
     pc += 2;
 }
 
 // OR VX, VY (vx = vx | vy)
 void Chip8::IN_8XY1(){
-    uint8_t vx = GetVX();
-    uint8_t vy = GetVY();
+    uint8_t& vx = GetVX();
+    uint8_t& vy = GetVY();
     vx = vx | vy;
     pc += 2;
 }
 
 // AND VX, VY
 void Chip8::IN_8XY2(){
-    uint8_t vx = GetVX();
-    uint8_t vy = GetVY();
+    uint8_t& vx = GetVX();
+    uint8_t& vy = GetVY();
     vx = vx & vy;
     pc += 2;
 }
 
 // XOR VX, VY
 void Chip8::IN_8XY3(){
-    uint8_t vx = GetVX();
-    uint8_t vy = GetVY();
+    uint8_t& vx = GetVX();
+    uint8_t& vy = GetVY();
     vx = vx ^ vy;
     pc += 2;
 }
 
 // ADD VX, VY
 void Chip8::IN_8XY4(){
-    uint8_t vx = GetVX();
-    uint8_t vy = GetVY();
+    uint8_t& vx = GetVX();
+    uint8_t& vy = GetVY();
     int res = vx + vy;
-    vy = (res > 255) ? 1 : 0;
+    V[F]= (res > 255) ? 1 : 0;
     vx = res & 0xFF;
     pc += 2;
 }
 
 // SUB VX, VY
 void Chip8::IN_8XY5(){
-    uint8_t vx = GetVX();
-    uint8_t vy = GetVY();
+    uint8_t& vx = GetVX();
+    uint8_t& vy = GetVY();
     
     V[F] = (vx > vy) ? 1 : 0;
     vx = vx - vy;
@@ -198,7 +198,7 @@ void Chip8::IN_8XY5(){
 
 // SHR VX, {, Vy} (SRL)
 void Chip8::IN_8XY6(){
-    uint8_t vx = GetVX();
+    uint8_t& vx = GetVX();
     
     V[F] = vx & 0x1;
     vx >>=1;
@@ -207,8 +207,8 @@ void Chip8::IN_8XY6(){
 
 // SUBN VX, VY
 void Chip8::IN_8XY7(){
-    uint8_t vx = GetVX();
-    uint8_t vy = GetVY();
+    uint8_t& vx = GetVX();
+    uint8_t& vy = GetVY();
     
     V[F] = (vx < vy) ? 1 : 0;
     vx = vy - vx;
@@ -217,16 +217,16 @@ void Chip8::IN_8XY7(){
 
 // SHL VX, {, VY}
 void Chip8::IN_8XYE(){
-    uint8_t vx = GetVX();
+    uint8_t& vx = GetVX();
     V[F] = (vx >> 7) ? 1 : 0;
-    vx <<= 2;
+    vx <<= 1;
     pc += 2;
 }
 
 // SNE VX, VY (skip next inst if vx != vy)
 void Chip8::IN_9XY0(){
-    uint8_t vx = GetVX();
-    uint8_t vy = GetVY();
+    uint8_t& vx = GetVX();
+    uint8_t& vy = GetVY();
 
     if (vx != vy){
         pc += 4;
@@ -248,7 +248,7 @@ void  Chip8::IN_BNNN(){
 
 // RND VX, byte 
 void Chip8::IN_CXKK(){
-    uint8_t vx = GetVX();
+    uint8_t& vx = GetVX();
     uint8_t kk = ir & 0xFF;
     uint8_t rnd = dist(generator);
     vx = rnd & kk;
@@ -281,6 +281,7 @@ void Chip8::IN_DXYN(){
             }
         }
     }
+    shouldRender = true;
     pc += 2;
 }
 
@@ -290,7 +291,7 @@ void Chip8::IN_EX9E(){
     if (vx > 0xFF){
         return;
     }
-    if(memory[vx]){
+    if(keyboard[vx]){
         pc += 4;
     } else {
         pc += 2;
@@ -303,7 +304,7 @@ void Chip8::IN_EXA1(){
     if (vx > 0xFF){
         return;
     }
-    if(!memory[vx]){
+    if(!keyboard[vx]){
         pc += 4;
     } else {
         pc += 2;
@@ -318,18 +319,18 @@ void Chip8::IN_FX07(){
 
 // LD VX, K
 void Chip8::IN_FX0A(){
-    uint8_t vx = GetVX();
-    bool executed = false;
-    while(!executed){
-        for(int i = 0; i < F; ++i){
-            if(V[i]){
-                vx = i;
-                executed = true;
-                break;
-            }
+    bool key_pressed = false;
+    for(int i = 0; i < 16; i++){
+        if(keyboard[i]){
+            GetVX() = i;
+            key_pressed = true;
+            break;
         }
     }
-    pc += 2;
+
+    if(!key_pressed){
+        pc -= 2;
+    }
 }
 
 // LD DT, VX
@@ -358,7 +359,7 @@ void Chip8::IN_FX29(){
 
 // LD B, VX
 void Chip8::IN_FX33(){
-    uint8_t vx = GetVX();
+    uint8_t& vx = GetVX();
     memory[I] = vx / 100;
     memory[I + 1] = (vx / 10) % 10;
     memory[I + 2] = vx % 10;
@@ -421,9 +422,6 @@ void Chip8::UnknownInstruction(const uint16_t& instruction) {
 void Chip8::Cycle() {
     // fetch
     ir = (memory[pc] << 8) | memory[pc + 1];
-
-
-    pc += 2;
 
     // decode & execute
     switch (ir & 0xF000) {
