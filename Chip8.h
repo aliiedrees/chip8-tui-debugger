@@ -5,6 +5,30 @@
 #include <random>
 using std::string;
 
+// to save snapshots
+struct Chip8State{
+    uint8_t V[16];
+    uint16_t I;
+    uint16_t pc;
+    uint16_t ir;
+    uint8_t sp;
+    uint8_t dt;
+    uint8_t st;
+};
+
+/* CHIP8 QUIRKS
+    as I was testing and debugging the chip
+    I realised that there is no "right" way
+        to implement the instructions and 
+        there is a modern way and original way
+    so I came up with the idea to have a flags
+        that trigger to which version of the 
+        instruction we want to use
+
+    HERE CAME THE IDEA OF THE QUIRKS
+*/
+
+
 class Chip8 {
 private:
     static constexpr int MEMORY_SIZE = 4096;
@@ -60,7 +84,7 @@ private:
     // random generator
     std::mt19937 generator;
     std::uniform_int_distribution<uint8_t> dist;
-public:
+
     uint8_t memory[MEMORY_SIZE]; //4KB RAM
     uint8_t V[F+1]; // 16 registers (V0-VF)
     uint16_t I; // index register (addresses)
@@ -78,9 +102,19 @@ public:
     uint8_t display[DISPLAY_HEIGHT * DISPLAY_WIDTH]; // display in pixles
     uint8_t keyboard[F+1]; // keyboard 0-F (in hex)
 
+    int waitingForKeyIndex = -1; // -1 means we aren't waiting
+public:
     Chip8(); // c'tor
     void LoadROM(const string& path); 
     void Cycle(); // fetch decode execute
+    void SetKey(uint8_t key, bool isPressed);
+    const uint8_t* GetDisplay() const {return display;}
+    void ActivateDT();
+    void ActivateST();
+    bool ShouldRender() const {return shouldRender;}
+    void DeActivateRender() {shouldRender = false;}
+    Chip8State GetState() const;
+    void LoadState(const Chip8State& state);
 };
 /* display
 (0,0)                                              (63,0)

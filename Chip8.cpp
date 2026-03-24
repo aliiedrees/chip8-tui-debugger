@@ -77,7 +77,7 @@ void Chip8::IN_00E0(){
 
 // RET (return from a subroutine)
 void Chip8::IN_00EE(){
-    pc = stack[sp--];
+    pc = stack[--sp];
 }
 
 // JP addr (jump to address NNN)
@@ -90,7 +90,7 @@ void Chip8::IN_2NNN(){
     if (sp >= F){
         std::cerr << "ERROR: Stack Overflow! Too many nested calls." << std::endl;
     }
-    stack[++sp] = pc + 2;
+    stack[sp++] = pc + 2;
     pc = ir & 0x0FFF;
 }
 
@@ -156,6 +156,7 @@ void Chip8::IN_8XY0(){
 void Chip8::IN_8XY1(){
     uint8_t& vx = GetVX();
     uint8_t& vy = GetVY();
+    V[F] = 0;
     vx = vx | vy;
     pc += 2;
 }
@@ -164,6 +165,7 @@ void Chip8::IN_8XY1(){
 void Chip8::IN_8XY2(){
     uint8_t& vx = GetVX();
     uint8_t& vy = GetVY();
+    V[F] = 0;
     vx = vx & vy;
     pc += 2;
 }
@@ -172,6 +174,7 @@ void Chip8::IN_8XY2(){
 void Chip8::IN_8XY3(){
     uint8_t& vx = GetVX();
     uint8_t& vy = GetVY();
+    V[F] = 0;
     vx = vx ^ vy;
     pc += 2;
 }
@@ -199,9 +202,9 @@ void Chip8::IN_8XY5(){
 // SHR VX, {, Vy} (SRL)
 void Chip8::IN_8XY6(){
     uint8_t& vx = GetVX();
-    
-    V[F] = vx & 0x1;
-    vx >>=1;
+    uint8_t& vy = GetVY();
+    V[F] = vy & 0x1;
+    vx = vy >> 1;
     pc += 2;
 }
 
@@ -218,8 +221,10 @@ void Chip8::IN_8XY7(){
 // SHL VX, {, VY}
 void Chip8::IN_8XYE(){
     uint8_t& vx = GetVX();
-    V[F] = (vx >> 7) ? 1 : 0;
-    vx <<= 1;
+    uint8_t& vy = GetVY();
+
+    V[F] = (vy >> 7) ? 1 : 0;
+    vx = vy << 1;
     pc += 2;
 }
 
@@ -257,27 +262,30 @@ void Chip8::IN_CXKK(){
 
 // DRW VX, VY, nibble
 void Chip8::IN_DXYN(){
-    uint8_t vx = GetVX() % DISPLAY_WIDTH;
-    uint8_t vy = GetVY() % DISPLAY_HEIGHT;
+    uint8_t vx = GetVX();
+    uint8_t vy = GetVY();
     uint8_t height = ir & 0xF;
     V[F] = 0;
     for (int row = 0; row < height; ++row) {
+        if (vy + row >= DISPLAY_HEIGHT) break;
+
         uint8_t spriteByte = memory[I + row];
-
         for (int col = 0; col < BYTE; ++col) {
-            uint8_t spritePixel = spriteByte & (0x80 >> col);
+            if (vx + col >= DISPLAY_WIDTH) break;
+            
+            if ((spriteByte & (0x80 >> col)) != 0) {
+                
+                int screenX = vx + col;
+                int screenY = vy + row;
 
-            int screenX = (vx + col) % DISPLAY_WIDTH;
-            int screenY = (vy + row) % DISPLAY_HEIGHT;
-            int index = screenX + (screenY * DISPLAY_WIDTH);
+                if (screenX < DISPLAY_WIDTH && screenY < DISPLAY_HEIGHT) {
+                    int index = screenX + (screenY * DISPLAY_WIDTH);
 
-            uint8_t& screenPixel = display[index];
-
-            if (spritePixel) {
-                if (screenPixel == 1) {
-                    V[F] = 1;
+                    if (display[index] == 1) {
+                        V[F] = 1; 
+                    }
+                    display[index] ^= 1;
                 }
-                screenPixel ^= 1;
             }
         }
     }
@@ -318,21 +326,30 @@ void Chip8::IN_FX07(){
 }
 
 // LD VX, K
-void Chip8::IN_FX0A(){
+void Chip8::IN_FX0A() {
     bool key_pressed = false;
-    for(int i = 0; i < 16; i++){
-        if(keyboard[i]){
-            GetVX() = i;
+
+    for (int i = 0; i < 16; i++) {
+        if (keyboard[i]) {
+            // A key is being held down. 
+            // We store it, but we DON'T advance the PC yet.
+            waitingForKeyIndex = i; 
             key_pressed = true;
             break;
         }
     }
 
-    if(!key_pressed){
-        pc -= 2;
+    // If a key was being held but is NOW released:
+    if (!key_pressed && waitingForKeyIndex != -1) {
+        GetVX() = (uint8_t)waitingForKeyIndex;
+        waitingForKeyIndex = -1; // Reset for next time
+        pc += 2;                 // Finally move to next instruction
+    } else {
+        // If no key has been pressed yet, or the key is still being held:
+        // Stay on this instruction (don't increment PC)
+        return; 
     }
 }
-
 // LD DT, VX
 void Chip8::IN_FX15(){
     dt = GetVX();
@@ -347,7 +364,9 @@ void Chip8::IN_FX18(){
 
 // ADD I, VX
 void Chip8::IN_FX1E(){
-    I += GetVX();
+    int sum = I + GetVX();
+    I = sum & 0xFFF;
+    //V[F] = sum > 0xFFF ? 1 : 0;
     pc += 2;
 }
 
@@ -373,6 +392,7 @@ void Chip8::IN_FX55(){
     for(int i = 0; i <= x; ++i){
         memory[I + i] = V[i];
     }
+   // I += x + 1;
     pc += 2;
 }
 
@@ -382,6 +402,7 @@ void Chip8::IN_FX65(){
     for(int i = 0; i <= x; ++i){
         V[i] = memory[I + i];
     }
+   // I += x + 1;
     pc += 2;
 }
 
@@ -420,6 +441,12 @@ void Chip8::UnknownInstruction(const uint16_t& instruction) {
 }
 
 void Chip8::Cycle() {
+    // check the pc
+    if (pc < START_OF_PROGRAM || pc >= MEMORY_SIZE) {
+        std::cerr << "PC out of bounds! PC: 0x" << std::hex << pc << std::endl;
+        return;
+    }
+    
     // fetch
     ir = (memory[pc] << 8) | memory[pc + 1];
 
@@ -498,6 +525,42 @@ void Chip8::Cycle() {
             UnknownInstruction(ir);
             break;
     }
+}
 
+void Chip8::SetKey(uint8_t key, bool isPressed){
+    keyboard[key] = isPressed;
+}
 
+void Chip8::ActivateDT(){
+    if (dt > 0) --dt;  
+}
+
+void Chip8::ActivateST(){
+    if (st > 0) --st; 
+}
+
+Chip8State Chip8::GetState() const {
+    Chip8State state;
+    for (int i = 0; i < 16; ++i){
+        state.V[i] = V[i];
+    }
+    state.pc = pc;
+    state.ir = ir;
+    state.dt = dt;
+    state.sp = sp;
+    state.st = st;
+    state.I = I;
+    return state;
+}
+
+void Chip8::LoadState(const Chip8State& state){
+    for (int i = 0; i < 16; ++i){
+        V[i] = state.V[i];
+    }
+    pc = state.pc;
+    ir = state.ir;
+    dt = state.dt;
+    sp = state.sp;
+    st = state.st;
+    I = state.I;
 }
