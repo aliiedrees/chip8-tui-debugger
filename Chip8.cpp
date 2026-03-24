@@ -6,7 +6,18 @@ using std::ifstream;
 
 // Chip8::Settings
 static Chip8::Settings& ParseArgs(int argc ,const char** argv){
+    if (argc < 2)
+    {
+        std::cerr << "Usage: " << argv[0] << " <ROM_PATH>" << std::endl;
+        std::cerr << "Flags: -l (--log) <LOG_PATH>" << std::endl;
+        throw ; // continue
+    }
 
+    if (argc > 2){ // handle flags
+        string flag = argv[3];
+        string path = argv[4];
+        if (flag != "-l"){}
+    }
 }
 
 
