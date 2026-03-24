@@ -31,7 +31,41 @@ struct Chip8State{
 */
 
 
+
+
 class Chip8 {
+public:
+    /* Settings
+        I will be handling the settings and the flags 
+        using this struct which eventually will be 
+        a member in the CHIP8 class.
+        in short the settings will be triggered using
+        flags and paths in the arguments
+    */
+    struct Settings { 
+        string romPath = "";
+        string logPath = "";
+        bool log = false;
+        bool modernShift = false;
+        bool incrementI = false;
+
+        static Chip8::Settings& ParseArgs(int argc ,const char** argv);
+    };
+
+    Chip8(Settings& settings); // c'tor
+    void LoadROM(const string& path); 
+    void Cycle(); // fetch decode execute
+    void SetKey(uint8_t key, bool isPressed);
+    const uint8_t* GetDisplay() const {return display;}
+    void ActivateDT();
+    void ActivateST();
+    bool ShouldRender() const {return shouldRender;}
+    void DeActivateRender() {shouldRender = false;}
+    Chip8State GetState() const;
+    void LoadState(const Chip8State& state);
+    void ToggleLog(const char* path, ofstream& logFile, bool& running); // i may later use exception handling
+
+    
 private:
     static constexpr int MEMORY_SIZE = 4096;
     static constexpr int F = 15;
@@ -106,19 +140,9 @@ private:
 
     int waitingForKeyIndex = -1; // -1 means we aren't waiting
     bool logEnabled = false;
-public:
-    Chip8(); // c'tor
-    void LoadROM(const string& path); 
-    void Cycle(); // fetch decode execute
-    void SetKey(uint8_t key, bool isPressed);
-    const uint8_t* GetDisplay() const {return display;}
-    void ActivateDT();
-    void ActivateST();
-    bool ShouldRender() const {return shouldRender;}
-    void DeActivateRender() {shouldRender = false;}
-    Chip8State GetState() const;
-    void LoadState(const Chip8State& state);
-    void ToggleLog(const char* path, ofstream& logFile);
+
+    Settings settings;
+
 };
 /* display
 (0,0)                                              (63,0)

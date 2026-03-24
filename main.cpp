@@ -27,21 +27,15 @@ uint8_t keymap[16] = {
 };
 
 void drawRegisters(WINDOW *win, const Chip8State &state);
-
-int main(int argc, char **argv)
+int main(int argc, const char **argv)
 {
-
+    Chip8::Settings settings = Chip8::Settings::ParseArgs(argc, argv);
     setlocale(LC_ALL, "");
-    if (argc != 2)
-    {
-        std::cerr << "Usage: " << argv[0] << " <ROM_PATH>" << std::endl;
-        return 1;
-    }
-
+    
     const int TICKS_PER_SECOND = 60;
     const int TICKS_PER_FRAME = 11;
     const int FRAME_DURATION_US = 1000000 / TICKS_PER_SECOND;
-    Chip8 chip8;
+    Chip8 chip8(settings);
     chip8.LoadROM(argv[1]);
 
     initscr();

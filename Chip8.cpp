@@ -4,6 +4,13 @@
 #include <random>
 using std::ifstream;
 
+// Chip8::Settings
+static Chip8::Settings& ParseArgs(int argc ,const char** argv){
+
+}
+
+
+
 uint8_t& Chip8::GetVX(){
     return V[(ir & 0x0F00) >> 8];
 }
@@ -40,7 +47,7 @@ static const uint8_t FONTSET[FONTSET_SIZE] = {
 };
 
 // c'tor
-Chip8::Chip8()
+Chip8::Chip8(Settings& settings)
     : generator(std::random_device{}()),
       dist(0, 255),
       memory{},
@@ -53,7 +60,8 @@ Chip8::Chip8()
       st(0),
       shouldRender(false),
       display{},
-      keyboard{}
+      keyboard{},
+      settings(settings)
 {
     for (int i = 0; i < FONTSET_SIZE; i++){
         memory[i] = FONTSET[i];
@@ -404,7 +412,6 @@ void Chip8::IN_FX65(){
     pc += 2;
 }
 
-
 // loadROM
 void Chip8::LoadROM(const string& path){
     ifstream file(path, std::ios::ate | std::ios::binary);
@@ -563,10 +570,15 @@ void Chip8::LoadState(const Chip8State& state){
     I = state.I;
 }
 
-void Chip8::ToggleLog(const char* path, ofstream& logFile){
+void Chip8::ToggleLog(const char* path, ofstream& logFile, bool& running){
     logEnabled = !logEnabled;
     if (logEnabled){
         logFile.open(path, std::ios::app);
+        if(!logFile){
+            std::cerr << "ERROR: Couldn't open log file " << path << std::endl;
+            running = false;
+            return;
+        }
         logFile << "---LOG START---" << std::endl;
     } else {
         if (logFile.is_open()){
