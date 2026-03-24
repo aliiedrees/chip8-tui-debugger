@@ -3,7 +3,9 @@
 #include <cstdint> // to access 16/8 bit types
 #include <string>
 #include <random>
+#include <iostream>
 using std::string;
+using std::ofstream;
 
 // to save snapshots
 struct Chip8State{
@@ -103,6 +105,7 @@ private:
     uint8_t keyboard[F+1]; // keyboard 0-F (in hex)
 
     int waitingForKeyIndex = -1; // -1 means we aren't waiting
+    bool logEnabled = false;
 public:
     Chip8(); // c'tor
     void LoadROM(const string& path); 
@@ -115,6 +118,7 @@ public:
     void DeActivateRender() {shouldRender = false;}
     Chip8State GetState() const;
     void LoadState(const Chip8State& state);
+    void ToggleLog(const char* path, ofstream& logFile);
 };
 /* display
 (0,0)                                              (63,0)

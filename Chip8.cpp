@@ -1,10 +1,8 @@
 #include "Chip8.h"
 #include <fstream>
-#include <iostream>
 #include <string>
 #include <random>
 using std::ifstream;
-
 
 uint8_t& Chip8::GetVX(){
     return V[(ir & 0x0F00) >> 8];
@@ -564,3 +562,18 @@ void Chip8::LoadState(const Chip8State& state){
     st = state.st;
     I = state.I;
 }
+
+void Chip8::ToggleLog(const char* path, ofstream& logFile){
+    logEnabled = !logEnabled;
+    if (logEnabled){
+        logFile.open(path, std::ios::app);
+        logFile << "---LOG START---" << std::endl;
+    } else {
+        if (logFile.is_open()){
+            logFile << "---LOG END---" << std::endl;
+            logFile.close();
+        }
+    }
+}
+
+
