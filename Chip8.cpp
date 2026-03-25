@@ -157,7 +157,8 @@ void Chip8::IN_00E0(){
 
 // RET (return from a subroutine)
 void Chip8::IN_00EE(){
-    pc = stack[--sp];
+    sp--;
+    pc = stack[sp];
 }
 
 // JP addr (jump to address NNN)
@@ -170,7 +171,8 @@ void Chip8::IN_2NNN(){
     if (sp >= F){
         std::cerr << "ERROR: Stack Overflow! Too many nested calls." << std::endl;
     }
-    stack[sp++] = pc + 2;
+    stack[sp] = pc + 2;
+    sp++;
     pc = ir & 0x0FFF;
 }
 
@@ -354,9 +356,9 @@ void Chip8::IN_CXKK(){
 
 // DRW VX, VY, nibble
 void Chip8::IN_DXYN() {
-    uint8_t vx = GetVX();
-    uint8_t vy = GetVY();
-    uint8_t height = ir & 0x000F;
+    uint8_t vx = GetVX() % DISPLAY_WIDTH; 
+    uint8_t vy = GetVY() % DISPLAY_HEIGHT;
+    uint8_t height = ir & 0x000F; 
     
     V[0xF] = 0; 
 
@@ -626,10 +628,11 @@ void Chip8::ActivateST(){
     if (st > 0) --st; 
 }
 
-Chip8State Chip8::GetState() const {
-    Chip8State state;
+Chip8::State Chip8::GetState() const {
+    Chip8::State state;
     for (int i = 0; i < 16; ++i){
         state.V[i] = V[i];
+        state.stack[i] = stack[i];
     }
     state.pc = pc;
     state.ir = ir;
@@ -637,12 +640,14 @@ Chip8State Chip8::GetState() const {
     state.sp = sp;
     state.st = st;
     state.I = I;
+    state.settings = settings;
     return state;
 }
 
-void Chip8::LoadState(const Chip8State& state){
+void Chip8::LoadState(const Chip8::State& state){
     for (int i = 0; i < 16; ++i){
         V[i] = state.V[i];
+        stack[i] = state.stack[i];
     }
     pc = state.pc;
     ir = state.ir;
@@ -650,6 +655,7 @@ void Chip8::LoadState(const Chip8State& state){
     sp = state.sp;
     st = state.st;
     I = state.I;
+    settings = state.settings;
 }
 
 /* THROWS EXCEPTION*/

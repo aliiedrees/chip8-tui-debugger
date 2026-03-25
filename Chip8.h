@@ -7,17 +7,6 @@
 using std::string;
 using std::ofstream;
 
-// to save snapshots
-struct Chip8State{
-    uint8_t V[16];
-    uint16_t I;
-    uint16_t pc;
-    uint16_t ir;
-    uint8_t sp;
-    uint8_t dt;
-    uint8_t st;
-};
-
 /* CHIP8 QUIRKS
     as I was testing and debugging the chip
     I realised that there is no "right" way
@@ -55,6 +44,17 @@ public:
 
         static Chip8::Settings ParseArgs(int argc ,const char** argv);
     };
+    struct State{
+        uint8_t V[16];
+        uint16_t I;
+        uint16_t pc;
+        uint16_t ir;
+        uint8_t sp;
+        uint8_t dt;
+        uint8_t st;
+        uint16_t stack[0xF + 1];
+        Chip8::Settings settings;
+    };
 
     Chip8(Settings& settings); // c'tor
     void LoadROM(); 
@@ -65,8 +65,8 @@ public:
     void ActivateST();
     bool ShouldRender() const {return shouldRender;}
     void DeActivateRender() {shouldRender = false;}
-    Chip8State GetState() const;
-    void LoadState(const Chip8State& state);
+    Chip8::State GetState() const;
+    void LoadState(const Chip8::State& state);
     void ToggleLog(ofstream& logFile);
 
     

@@ -27,7 +27,9 @@ uint8_t keymap[16] = {
     'v', // C, D, E, F
 };
 
-void drawRegisters(WINDOW *win, const Chip8State &state);
+void drawRegisters(WINDOW *win, const Chip8::State &state);
+void drawSettings(WINDOW* win, const Chip8::Settings& settings);
+void drawStack(WINDOW *win, const Chip8::State &state);
 
 int main(int argc, const char** argv)
 {
@@ -51,14 +53,16 @@ int main(int argc, const char** argv)
         nodelay(stdscr, true);
         keypad(stdscr, true);
 
-        WINDOW *displayWin = newwin(34, 66, 0, 0);
-        box(displayWin, 0, 0);
-
-        WINDOW *regWin = newwin(34, 30, 0, 67);
-        box(regWin, 0, 0);
-
+        WINDOW* displayWin = newwin(34, 66, 0, 0);
+        WINDOW* regWin = newwin(15, 26, 0, 66);
+        WINDOW* stackWin = newwin(12, 26, 15, 66);
+        WINDOW* settingsWin = newwin(7, 26, 27, 66);
         wnoutrefresh(displayWin);
         wnoutrefresh(regWin);
+        wnoutrefresh(stackWin);
+        wnoutrefresh(settingsWin);
+
+
 
         bool running = true;
         bool paused = false;
@@ -101,7 +105,8 @@ int main(int argc, const char** argv)
             }
             
             drawRegisters(regWin, chip8.GetState());
-
+            drawStack(stackWin, chip8.GetState());
+            drawSettings(settingsWin, chip8.GetState().settings);
 
             if (chip8.ShouldRender()){
                 box(displayWin, 0, 0); 
@@ -127,9 +132,11 @@ int main(int argc, const char** argv)
             }
         }
     } catch (const Chip8Exception& e){
+        endwin();
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     } catch (const std::exception& e){
+        endwin();
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
@@ -138,27 +145,76 @@ int main(int argc, const char** argv)
     return EXIT_SUCCESS;
 }
 
-void drawRegisters(WINDOW *win, const Chip8State &state)
+void drawRegisters(WINDOW *win, const Chip8::State &state)
 {
     werase(win);
     box(win, 0, 0);
 
-    mvwprintw(win, 1, 2, "--- REGISTERS ---");
+    mvwprintw(win, 1, 2, "  --- REGISTERS ---");
     for (int i = 0; i < 8; ++i)
     {
-        mvwprintw(win, 3 + i, 2, "V%X: 0x%02X", i, state.V[i]);
+        mvwprintw(win, 3 + i, 3, "V%X: 0x%02X", i, state.V[i]);
     }
 
     for (int i = 8; i < 16; ++i)
     {
-        mvwprintw(win, 3 + (i - 8), 15, "V%X: 0x%02X", i, state.V[i]);
+        mvwprintw(win, 3 + (i - 8), 14, "V%X: 0x%02X", i, state.V[i]);
     }
 
-    mvwprintw(win, 12, 2, "--------------");
-    mvwprintw(win, 14, 2, "PC: 0x%04X", state.pc);
-    mvwprintw(win, 15, 2, "I: 0x%04X", state.I);
-    mvwprintw(win, 16, 2, "SP: 0x%04X", state.sp);
-    mvwprintw(win, 17, 2, "IR: 0x%04X", state.ir);
+    mvwprintw(win, 11, 3, "--------------------");
+    mvwprintw(win, 12, 2, "PC: 0x%04X", state.pc);
+    mvwprintw(win, 13, 2, "I: 0x%04X", state.I);
+    mvwprintw(win, 12, 14, "HZ: %d", state.settings.ticksPerFrame * 60);
+    mvwprintw(win, 13, 14, "IR: 0x%04X", state.ir);
+
+    wnoutrefresh(win);
+}
+
+void drawStack(WINDOW *win, const Chip8::State &state){
+    werase(win);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, 4, "  --- STACK ---");
+    for (int i = 0; i < 8; ++i)
+    {
+        if (!has_colors()){
+            mvwprintw(win, 3 + i, 3, "[%X]: 0x%02X", i, state.stack[i]);
+        } else {
+            bool isActive = (state.sp > 0 && i == state.sp - 1);
+            if (isActive) wattron(win, A_REVERSE); 
+
+            mvwprintw(win, 3 + i, 3, "[%X]: 0x%03X", i, state.stack[i]);
+
+            if (isActive) wattroff(win, A_REVERSE);
+        }
+    }
+
+    for (int i = 8; i < 16; ++i)
+    {
+        mvwprintw(win, 3 + (i - 8), 14, "[%X]: 0x%02X", i, state.stack[i]);
+    }
+
+    wnoutrefresh(win);
+}
+
+void drawSettings(WINDOW* win, const Chip8::Settings& settings){
+    werase(win);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, 4, " --- SETTINGS ---");
+    string shiftStatus = (settings.shift) ? "ORG" : "MOD";
+    string incrementStatus = (settings.increment) ? "ORG" : "MOD";
+    string jumpStatus = (settings.jump) ? "ORG" : "MOD";
+    string logStatus = (settings.log) ? "ON" : "OFF";
+    string vfStatus = (settings.vfReset) ? "ORG" : "MOD";
+    string wrapStatus = (settings.wrap) ? "ORG" : "MOD";
+
+    mvwprintw(win, 3, 4, "S: %s", shiftStatus.c_str());
+    mvwprintw(win, 4, 4, "I: %s", incrementStatus.c_str());
+    mvwprintw(win, 5, 4, "J: %s", jumpStatus.c_str());
+    mvwprintw(win, 3, 14, "L: %s", logStatus.c_str());
+    mvwprintw(win, 4, 14, "VF: %s", vfStatus.c_str());
+    mvwprintw(win, 5, 14, "W: %s", wrapStatus.c_str());
 
     wnoutrefresh(win);
 }
