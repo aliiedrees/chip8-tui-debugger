@@ -1,23 +1,86 @@
 #include "Chip8.h"
+#include "Exceptions.h"
 #include <fstream>
 #include <string>
 #include <random>
 using std::ifstream;
+using std::string;
 
-// Chip8::Settings
-static Chip8::Settings& ParseArgs(int argc ,const char** argv){
-    if (argc < 2)
-    {
-        std::cerr << "Usage: " << argv[0] << " <ROM_PATH>" << std::endl;
-        std::cerr << "Flags: -l (--log) <LOG_PATH>" << std::endl;
-        throw ; // continue
-    }
+enum Flag {Unkown, Help, Log, Ticks, Shift, Increment, Jump, VfReset, Wrap};
+// helper functions
+void PrintUsageMessage(std::ostream& os, const char* arg){
+    os << "Usage: " << arg << " <ROM_PATH> [OPTIONS]\n\n"
+        << "A high-performance Chip-8 interpreter with configurable hardware quirks.\n\n"
+        << "CORE OPTIONS:\n"
+        << "  -h, --help                Display this help message and exit\n"
+        << "  -l, --log <PATH>          Enable instruction logging to file\n"
+        << "  -t, --ticks <N>           Instructions per 60Hz frame [Default: 11] N in [1,5000]\n\n"
+        << "EMULATION QUIRKS (Modern SCHIP by default; Flags enable 1977 logic):\n"
+        << "  -s, --shift               Original Shift (VX = VY before shift)\n"
+        << "  -i, --increment           Original Load/Store (I = I + X + 1)\n"
+        << "  -j, --jump                Original Jump (Jump to NNN + V0)\n"
+        << "  -f, --vf-reset            Original Logic (AND/OR/XOR reset VF to 0)\n"
+        << "  -w, --wrap                Original Display (Sprites wrap screen edges)\n"
+        << std::endl;
+}
 
-    if (argc > 2){ // handle flags
-        string flag = argv[3];
-        string path = argv[4];
-        if (flag != "-l"){}
+Flag ParseFlag(const char* arg){
+    string flag = string(arg);
+    if (flag == "-h" || flag == "--help") return Flag::Help;
+    if (flag == "-l" || flag == "--log") return Flag::Log;
+    if (flag == "-t" || flag == "--ticks") return Flag::Ticks;
+    if (flag == "-s" || flag == "--shift") return Flag::Shift;
+    if (flag == "-i" || flag == "--increment") return Flag::Increment;
+    if (flag == "-j" || flag == "--jump") return Flag::Jump;
+    if (flag == "-f" || flag == "--vf-reset") return Flag::VfReset;
+    if (flag == "-w" || flag == "--wrap") return Flag::Wrap;
+    
+    return Flag::Unkown;  
+}
+
+/* Chip8::Settings THROWS EXCEPTION */
+Chip8::Settings Chip8::Settings::ParseArgs(int argc ,const char** argv){
+    if (argc < 2) throw WrongUsageException(argv[0]);
+    
+    Chip8::Settings settings;
+    settings.romPath = argv[1];
+    for (int i = 2; i < argc; i++){
+        Flag flag = ParseFlag(argv[i]);
+        switch (flag){
+            case Flag::Unkown : throw WrongUsageException(argv[0]);
+            case Flag::Help : PrintUsageMessage(std::cout, argv[0]); exit(0);
+            case Flag::Log :
+                settings.log = true;
+                if (i + 1 < argc && ParseFlag(argv[i+1]) == Flag::Unkown){
+                    settings.logPath = argv[++i];
+                }
+                break;
+            case Flag::Ticks : 
+                if (i + 1 < argc && ParseFlag(argv[i+1]) == Flag::Unkown){
+                    try {
+                        int ticks = std::stoi(argv[++i]);
+                        if(ticks <= 0 || ticks > 15000){
+                            throw TicksOutOfRangeException();
+                        }
+                        settings.ticksPerFrame = ticks; break;
+                    } catch (const std::invalid_argument&) {
+                        throw TicksNotIntException(argv[i]);
+                    } catch (const std::out_of_range&) {
+                        throw TicksOutOfRangeException();
+                    }                  
+                } else {
+                    throw WrongUsageException(argv[0]);
+                }
+            case Flag::Shift : settings.shift = true; break;
+            case Flag::Increment : settings.increment = true; break;
+            case Flag::Jump : settings.jump = true; break;
+            case Flag::VfReset : settings.vfReset = true; break;
+            case Flag::Wrap : settings.wrap = true; break;
+            default:
+                throw WrongUsageException(argv[0]);
+            }
     }
+    return settings;
 }
 
 
@@ -36,7 +99,7 @@ const uint8_t& Chip8::GetVY() const {
 }
 
 // font array
-static constexpr unsigned int FONTSET_SIZE = 80;
+static constexpr int FONTSET_SIZE = 80;
 
 static const uint8_t FONTSET[FONTSET_SIZE] = {
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -313,9 +376,9 @@ void Chip8::IN_DXYN(){
 // SKP VX
 void Chip8::IN_EX9E(){
     uint8_t vx = GetVX();
-    if (vx > 0xFF){
+    /*if (vx > (uint8_t)0xFF){
         return;
-    }
+    }*/
     if(keyboard[vx]){
         pc += 4;
     } else {
@@ -326,9 +389,9 @@ void Chip8::IN_EX9E(){
 // SKNP VX
 void Chip8::IN_EXA1(){
     uint8_t vx = GetVX();
-    if (vx > 0xFF){
+    /*if (vx > (uint8_t)0xFF){
         return;
-    }
+    }*/
     if(!keyboard[vx]){
         pc += 4;
     } else {
@@ -423,16 +486,15 @@ void Chip8::IN_FX65(){
     pc += 2;
 }
 
-// loadROM
-void Chip8::LoadROM(const string& path){
-    ifstream file(path, std::ios::ate | std::ios::binary);
+/* loadROM THROWS EXCEPTION */
+void Chip8::LoadROM(){
+    ifstream file(settings.romPath, std::ios::ate | std::ios::binary);
 
     if (file.is_open()){
         int max_size = MEMORY_SIZE - START_OF_PROGRAM;
         std::streampos size = file.tellg(); // we are at the end (ate) so tellg will return size
         if (size > max_size){ // check ROM size
-            std::cerr << "ROM file is too big! *max size of ROM is" << max_size << "*" << std::endl;
-            return;
+            throw RomFileTooBigException(settings.romPath, max_size);
         }
         //return to the beginnnig of file
         file.seekg(0, std::ios::beg);
@@ -447,20 +509,15 @@ void Chip8::LoadROM(const string& path){
         file.close();
         std::cout << "ROM loaded successfully. size of ROM is " << size << " bytes." << std::endl;
     } else {
-        std::cerr << "FAILED to open ROM: " << path << std::endl;
+        throw InvalidRomPathException(settings.romPath);
     }
 }
 
-// Cycle
-void Chip8::UnknownInstruction(const uint16_t& instruction) {
-    std::printf("Unknown Instruction: 0x%X at PC: 0x%X\n", instruction, pc - 2);
-}
-
+/* Cycle THROWS EXCEPTION */
 void Chip8::Cycle() {
     // check the pc
     if (pc < START_OF_PROGRAM || pc >= MEMORY_SIZE) {
-        std::cerr << "PC out of bounds! PC: 0x" << std::hex << pc << std::endl;
-        return;
+        throw PcOutOfBondsException(pc);
     }
     
     // fetch
@@ -472,20 +529,18 @@ void Chip8::Cycle() {
             switch (ir & 0x00FF) {
                 case 0xE0: IN_00E0(); break; // CLS
                 case 0xEE: IN_00EE(); break; // RET
-                default: UnknownInstruction(ir); break;
+                default: throw UnknownOpcodeException(ir);
             }
             break;
-
         case 0x1000: IN_1NNN(); break; // JP addr
         case 0x2000: IN_2NNN(); break; // CALL addr
         case 0x3000: IN_3XKK(); break; // SE Vx, byte
-        case 0x4000: IN_4XKK(); break; // SNE Vx, byte
-        
+        case 0x4000: IN_4XKK(); break; // SNE Vx, byte   
         case 0x5000:
-            if ((ir & 0x000F) == 0) IN_5XY0(); // SE Vx, Vy
-            else UnknownInstruction(ir);
-            break;
-
+            if ((ir & 0x000F) == 0) {// SE Vx, Vy
+                IN_5XY0(); break; 
+            }
+            throw UnknownOpcodeException(ir);
         case 0x6000: IN_6XKK(); break; // LD Vx, byte
         case 0x7000: IN_7XKK(); break; // ADD Vx, byte
 
@@ -500,28 +555,26 @@ void Chip8::Cycle() {
                 case 0x6: IN_8XY6(); break; // SHR Vx
                 case 0x7: IN_8XY7(); break; // SUBN Vx, Vy
                 case 0xE: IN_8XYE(); break; // SHL Vx
-                default: UnknownInstruction(ir); break;
+                default: throw UnknownOpcodeException(ir);
             }
             break;
-
         case 0x9000:
-            if ((ir & 0x000F) == 0) IN_9XY0(); // SNE Vx, Vy
-            else UnknownInstruction(ir);
-            break;
-
+            if ((ir & 0x000F) == 0) {// SNE Vx, Vy
+                IN_9XY0(); 
+                break;
+            }
+            throw UnknownOpcodeException(ir);
         case 0xA000: IN_ANNN(); break; // LD I, addr
         case 0xB000: IN_BNNN(); break; // JP V0, addr
         case 0xC000: IN_CXKK(); break; // RND Vx, byte
         case 0xD000: IN_DXYN(); break; // DRW Vx, Vy, nibble
-
         case 0xE000:
             switch (ir & 0x00FF) {
                 case 0x9E: IN_EX9E(); break; // SKP Vx
                 case 0xA1: IN_EXA1(); break; // SKNP Vx
-                default: UnknownInstruction(ir); break;
+                default: throw UnknownOpcodeException(ir);
             }
             break;
-
         case 0xF000:
             switch (ir & 0x00FF) {
                 case 0x07: IN_FX07(); break; // LD Vx, DT
@@ -533,13 +586,11 @@ void Chip8::Cycle() {
                 case 0x33: IN_FX33(); break; // LD B, Vx
                 case 0x55: IN_FX55(); break; // LD [I], Vx
                 case 0x65: IN_FX65(); break; // LD Vx, [I]
-                default: UnknownInstruction(ir); break;
+                default: throw UnknownOpcodeException(ir);
             }
             break;
-
         default:
-            UnknownInstruction(ir);
-            break;
+            throw UnknownOpcodeException(ir);
     }
 }
 
@@ -581,14 +632,13 @@ void Chip8::LoadState(const Chip8State& state){
     I = state.I;
 }
 
-void Chip8::ToggleLog(const char* path, ofstream& logFile, bool& running){
-    logEnabled = !logEnabled;
-    if (logEnabled){
-        logFile.open(path, std::ios::app);
+/* THROWS EXCEPTION*/
+void Chip8::ToggleLog(ofstream& logFile){
+    settings.log = !settings.log;
+    if (settings.log){
+        logFile.open(settings.logPath, std::ios::app);
         if(!logFile){
-            std::cerr << "ERROR: Couldn't open log file " << path << std::endl;
-            running = false;
-            return;
+            throw InvalidLogPathException(settings.logPath);
         }
         logFile << "---LOG START---" << std::endl;
     } else {

@@ -44,16 +44,20 @@ public:
     */
     struct Settings { 
         string romPath = "";
-        string logPath = "";
+        string logPath = "trace.log"; // default
         bool log = false;
-        bool modernShift = false;
-        bool incrementI = false;
+        bool shift = false;
+        bool increment = false;
+        int ticksPerFrame = 11; // default
+        bool jump = false;
+        bool vfReset = false;
+        bool wrap = false;
 
-        static Chip8::Settings& ParseArgs(int argc ,const char** argv);
+        static Chip8::Settings ParseArgs(int argc ,const char** argv);
     };
 
     Chip8(Settings& settings); // c'tor
-    void LoadROM(const string& path); 
+    void LoadROM(); 
     void Cycle(); // fetch decode execute
     void SetKey(uint8_t key, bool isPressed);
     const uint8_t* GetDisplay() const {return display;}
@@ -63,7 +67,7 @@ public:
     void DeActivateRender() {shouldRender = false;}
     Chip8State GetState() const;
     void LoadState(const Chip8State& state);
-    void ToggleLog(const char* path, ofstream& logFile, bool& running); // i may later use exception handling
+    void ToggleLog(ofstream& logFile);
 
     
 private:
@@ -114,9 +118,6 @@ private:
     uint8_t& GetVY();
     const uint8_t& GetVY() const;
 
-    void UnknownInstruction(const uint16_t& instruction);
-
-
     // random generator
     std::mt19937 generator;
     std::uniform_int_distribution<uint8_t> dist;
@@ -139,7 +140,6 @@ private:
     uint8_t keyboard[F+1]; // keyboard 0-F (in hex)
 
     int waitingForKeyIndex = -1; // -1 means we aren't waiting
-    bool logEnabled = false;
 
     Settings settings;
 

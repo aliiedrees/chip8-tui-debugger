@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <string>
 #include <cstdint>
+#include <format>
 
 class Chip8Exception : public std::runtime_error {
     using std::runtime_error::runtime_error;
@@ -64,7 +65,38 @@ public:
 class TicksOutOfRangeException : public Chip8Exception {
 public:
     TicksOutOfRangeException()
-        : Chip8Exception("Error: ticks range is [1, 5000]."){};
+        : Chip8Exception("Error: ticks range is [1, 15000]."){};
 };
+
+// 7. Rom File too big
+class RomFileTooBigException : public Chip8Exception {
+public:
+    RomFileTooBigException(const string& file, int maxsize)
+        : Chip8Exception("ROM Error: File [" + file + "] exceeds memory limits. " 
+                         "Max allowed size is " + std::to_string(maxsize) + " bytes."){}
+};
+
+// 8. PC out of bonds
+class PcOutOfBondsException : public Chip8Exception {
+public:
+    explicit PcOutOfBondsException(uint16_t pc)
+        : Chip8Exception("PC out of bounds! PC: 0x"+ toHex(pc)){}
+private:
+    static std::string toHex(uint16_t val) {
+        char buf[5];
+        sprintf(buf, "%04X", val);
+        return std::string(buf);
+    }
+};
+
+// 9. Invalid Log File
+class InvalidLogPathException : public Chip8Exception {
+public:
+    explicit InvalidLogPathException(const std::string& path) 
+        : Chip8Exception("LOG Error: Could not find or open file at [" + path + "]") {}
+};
+
+
+
 
 

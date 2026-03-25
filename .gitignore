@@ -1,2 +1,4 @@
 .vscode/*
 chip8_emu
+main.o
+Chip8.o
