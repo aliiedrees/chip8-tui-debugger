@@ -3,12 +3,15 @@
 #include <fstream>
 #include <string>
 #include <random>
+#include <format>
+#include <cstdint>
+
 using std::ifstream;
 using std::string;
 
 enum Flag {Unkown, Help, Log, Ticks, Shift, Increment, Jump, VfReset, Wrap};
 // helper functions
-void PrintUsageMessage(std::ostream& os, const char* arg){
+static void PrintUsageMessage(std::ostream& os, const char* arg){
     os << "Usage: " << arg << " <ROM_PATH> [OPTIONS]\n\n"
         << "A high-performance Chip-8 interpreter with configurable hardware quirks.\n\n"
         << "CORE OPTIONS:\n"
@@ -23,7 +26,11 @@ void PrintUsageMessage(std::ostream& os, const char* arg){
         << "  -w, --wrap                Original Display (Sprites wrap screen edges)\n"
         << std::endl;
 }
-
+static std::string toHex(uint16_t val, int width) {
+    char buf[16];
+    std::snprintf(buf, sizeof(buf), "%0*X", width, val);
+    return std::string(buf);
+}
 Flag ParseFlag(const char* arg){
     string flag = string(arg);
     if (flag == "-h" || flag == "--help") return Flag::Help;
@@ -50,7 +57,7 @@ Chip8::Settings Chip8::Settings::ParseArgs(int argc ,const char** argv){
             case Flag::Unkown : throw WrongUsageException(argv[0]);
             case Flag::Help : PrintUsageMessage(std::cout, argv[0]); exit(0);
             case Flag::Log :
-                settings.log = true;
+                settings.logFlag = true;
                 if (i + 1 < argc && ParseFlag(argv[i+1]) == Flag::Unkown){
                     settings.logPath = argv[++i];
                 }
@@ -82,8 +89,6 @@ Chip8::Settings Chip8::Settings::ParseArgs(int argc ,const char** argv){
     }
     return settings;
 }
-
-
 
 uint8_t& Chip8::GetVX(){
     return V[(ir & 0x0F00) >> 8];
@@ -452,6 +457,7 @@ void Chip8::IN_FX0A() {
         return; 
     }
 }
+
 // LD DT, VX
 void Chip8::IN_FX15(){
     dt = GetVX();
@@ -529,14 +535,34 @@ void Chip8::LoadROM(){
             address++;
         }
         file.close();
-        std::cout << "ROM loaded successfully. size of ROM is " << size << " bytes." << std::endl;
+        std::ofstream logFile(settings.logPath, std::ios::app);
+        logFile << "ROM loaded successfully. size of ROM is " << size << " bytes." << std::endl;
+        logFile.close();
     } else {
         throw InvalidRomPathException(settings.romPath);
     }
 }
 
+void Chip8::LogCycle() const{
+    if (settings.logFlag && settings.log){
+        string instruction = Disassemble(ir);
+        ofstream logFile(settings.logPath, std::ios::app);
+        if(!logFile.is_open()){
+            throw InvalidLogPathException(settings.logPath);
+        }
+        logFile << "IR: " << instruction << " | "
+                << "I: 0x" << toHex(I, 3) << " | "
+                << "SP: " << int(sp) << " | V: ";
+        for (int i = 0; i <= 0xF; i++){
+            logFile << toHex(V[i], 2) << " ";
+        } 
+        logFile << std::endl;
+        logFile.close();
+    }
+}
+
 /* Cycle THROWS EXCEPTION */
-void Chip8::Cycle() {
+void Chip8::Cycle(bool& running) {
     // check the pc
     if (pc < START_OF_PROGRAM || pc >= MEMORY_SIZE) {
         throw PcOutOfBondsException(pc);
@@ -551,6 +577,7 @@ void Chip8::Cycle() {
             switch (ir & 0x00FF) {
                 case 0xE0: IN_00E0(); break; // CLS
                 case 0xEE: IN_00EE(); break; // RET
+                case 0x00: running = false; break;
                 default: throw UnknownOpcodeException(ir);
             }
             break;
@@ -614,6 +641,7 @@ void Chip8::Cycle() {
         default:
             throw UnknownOpcodeException(ir);
     }
+    LogCycle();
 }
 
 void Chip8::SetKey(uint8_t key, bool isPressed){
@@ -634,6 +662,9 @@ Chip8::State Chip8::GetState() const {
         state.V[i] = V[i];
         state.stack[i] = stack[i];
     }
+    for (int i = 0; i <= 0xFFF; i++){
+        state.memory[i] = memory[i];
+    }
     state.pc = pc;
     state.ir = ir;
     state.dt = dt;
@@ -643,11 +674,14 @@ Chip8::State Chip8::GetState() const {
     state.settings = settings;
     return state;
 }
-
+ 
 void Chip8::LoadState(const Chip8::State& state){
     for (int i = 0; i < 16; ++i){
         V[i] = state.V[i];
         stack[i] = state.stack[i];
+    }
+    for (int i = 0; i <= 0xFFF; i++){
+        memory[i] = state.memory[i];
     }
     pc = state.pc;
     ir = state.ir;
@@ -660,19 +694,81 @@ void Chip8::LoadState(const Chip8::State& state){
 
 /* THROWS EXCEPTION*/
 void Chip8::ToggleLog(ofstream& logFile){
-    settings.log = !settings.log;
-    if (settings.log){
-        logFile.open(settings.logPath, std::ios::app);
-        if(!logFile){
-            throw InvalidLogPathException(settings.logPath);
-        }
-        logFile << "---LOG START---" << std::endl;
-    } else {
-        if (logFile.is_open()){
-            logFile << "---LOG END---" << std::endl;
-            logFile.close();
+    if (settings.logFlag){
+        settings.log = !settings.log;
+        if (settings.log){
+            logFile.open(settings.logPath, std::ios::app);
+            if(!logFile){
+                throw InvalidLogPathException(settings.logPath);
+            }
+            logFile << "---LOG START---" << std::endl;
+        } else {
+            if (logFile.is_open()){
+                logFile << "---LOG END---" << std::endl;
+                logFile.close();
+            }
         }
     }
+}
+
+std::string Chip8::Disassemble(uint16_t ir) {
+    uint8_t n1 = (ir & 0xF000) >> 12;
+    uint8_t n2 = (ir & 0x0F00) >> 8;
+    uint8_t n3 = (ir & 0x00F0) >> 4;
+    uint8_t n4 = (ir & 0x000F);
+    uint16_t nnn = ir & 0x0FFF;
+    uint8_t kk = ir & 0x00FF;
+
+    switch (n1) {
+        case 0x0:
+            if (kk == 0xE0) return "CLS";
+            if (kk == 0xEE) return "RET";
+            if (nnn == 0x000) return "--- END OF PROGRAM ---";
+            else throw UnknownOpcodeException(ir);
+        case 0x1: return "JP " + toHex(nnn, 3);
+        case 0x2: return "CALL " + toHex(nnn, 3);
+        case 0x3: return "SE V" + toHex(n2, 1) + ", " + toHex(kk, 2);
+        case 0x4: return "SNE V" + toHex(n2, 1) + ", " + toHex(kk, 2);
+        case 0x5: return "SE V" + toHex(n2, 1) + ", V" + toHex(n3, 1);
+        case 0x6: return "LD V" + toHex(n2, 1) + ", " + toHex(kk, 2);
+        case 0x7: return "ADD V" + toHex(n2, 1) + ", " + toHex(kk, 2);
+        case 0x8:
+            switch (n4) {
+                case 0x0: return "LD V" + toHex(n2, 1) + ", V" + toHex(n3, 1);
+                case 0x1: return "OR V" + toHex(n2, 1) + ", V" + toHex(n3, 1);
+                case 0x2: return "AND V" + toHex(n2, 1) + ", V" + toHex(n3, 1);
+                case 0x3: return "XOR V" + toHex(n2, 1) + ", V" + toHex(n3, 1);
+                case 0x4: return "ADD V" + toHex(n2, 1) + ", V" + toHex(n3, 1);
+                case 0x5: return "SUB V" + toHex(n2, 1) + ", V" + toHex(n3, 1);
+                case 0x6: return "SHR V" + toHex(n2, 1);
+                case 0x7: return "SUBN V" + toHex(n2, 1) + ", V" + toHex(n3, 1);
+                case 0xE: return "SHL V" + toHex(n2, 1);
+            }
+            break;
+        case 0x9: return "SNE V" + toHex(n2, 1) + ", V" + toHex(n3, 1);
+        case 0xA: return "LD I, " + toHex(nnn, 3);
+        case 0xB: return "JP V0, " + toHex(nnn, 3);
+        case 0xC: return "RND V" + toHex(n2, 1) + ", " + toHex(kk, 2);
+        case 0xD: return "DRW V" + toHex(n2, 1) + ", V" + toHex(n3, 1) + ", " + toHex(n4, 1);
+        case 0xE:
+            if (kk == 0x9E) return "SKP V" + toHex(n2, 1);
+            if (kk == 0xA1) return "SKNP V" + toHex(n2, 1);
+            break;
+        case 0xF:
+            switch (kk) {
+                case 0x07: return "LD V" + toHex(n2, 1) + ", DT";
+                case 0x0A: return "LD V" + toHex(n2, 1) + ", K";
+                case 0x15: return "LD DT, V" + toHex(n2, 1);
+                case 0x18: return "LD ST, V" + toHex(n2, 1);
+                case 0x1E: return "ADD I, V" + toHex(n2, 1);
+                case 0x29: return "LD F, V" + toHex(n2, 1);
+                case 0x33: return "LD B, V" + toHex(n2, 1);
+                case 0x55: return "LD [I], V" + toHex(n2, 1);
+                case 0x65: return "LD V" + toHex(n2, 1) + ", [I]";
+            }
+            break;
+    }
+    throw UnknownOpcodeException(ir);
 }
 
 

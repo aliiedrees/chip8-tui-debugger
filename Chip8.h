@@ -23,6 +23,14 @@ using std::ofstream;
 
 
 class Chip8 {
+private:
+    static constexpr int MEMORY_SIZE = 4096;
+    static constexpr int F = 15;
+    static constexpr int START_OF_PROGRAM = 0x200;
+    static constexpr int DISPLAY_WIDTH = 64;
+    static constexpr int DISPLAY_HEIGHT = 32;
+    static constexpr int BYTE = 8;
+
 public:
     /* Settings
         I will be handling the settings and the flags 
@@ -35,6 +43,7 @@ public:
         string romPath = "";
         string logPath = "trace.log"; // default
         bool log = false;
+        bool logFlag = false;
         bool shift = false;
         bool increment = false;
         int ticksPerFrame = 11; // default
@@ -53,30 +62,28 @@ public:
         uint8_t dt;
         uint8_t st;
         uint16_t stack[0xF + 1];
+        uint8_t memory[MEMORY_SIZE];
         Chip8::Settings settings;
     };
 
     Chip8(Settings& settings); // c'tor
     void LoadROM(); 
-    void Cycle(); // fetch decode execute
+    void Cycle(bool& running); // fetch decode execute
     void SetKey(uint8_t key, bool isPressed);
     const uint8_t* GetDisplay() const {return display;}
     void ActivateDT();
     void ActivateST();
     bool ShouldRender() const {return shouldRender;}
-    void DeActivateRender() {shouldRender = false;}
+    void ToggleRender() {shouldRender = !shouldRender;}
     Chip8::State GetState() const;
     void LoadState(const Chip8::State& state);
     void ToggleLog(ofstream& logFile);
+    bool Logging() const {return settings.log;}
+    bool LogFlag() const {return settings.logFlag;}
 
-    
+    static string Disassemble(uint16_t opcode);
 private:
-    static constexpr int MEMORY_SIZE = 4096;
-    static constexpr int F = 15;
-    static constexpr int START_OF_PROGRAM = 0x200;
-    static constexpr int DISPLAY_WIDTH = 64;
-    static constexpr int DISPLAY_HEIGHT = 32;
-    static constexpr int BYTE = 8;
+    void LogCycle() const;
 
     void IN_00E0();
     void IN_00EE();
@@ -142,7 +149,6 @@ private:
     int waitingForKeyIndex = -1; // -1 means we aren't waiting
 
     Settings settings;
-
 };
 /* display
 (0,0)                                              (63,0)
