@@ -36,18 +36,35 @@ private:
 };
 
 // 4. Wrong Usage
-class ShowUsageException : public Chip8Exception {
-    ShowUsageException(const char* arg)
-        : Chip8Exception("Usage: " + std::string(arg) + " <ROM_PATH> [OPTIONS]\n"
-                       + "OPTIONS:\n"
-                       + "\t[-l] or [--log] <LOG_PATH>(Optional) /*NECESSARY TO ENABLE LOGGING*/\n"
-                       + "\t[-m] or [--modern]                   /*TO ENABLE MODERN SHIFT QUIRK (8XY6/8XYE)*/\n"
-                       + "\t[-i] or [--no-inc]                   /*DISABLE I-INCREMENT(FX55/FX65)*/\n"
-                       + "\t[-h] or [--help]                     /*TO GET THIS HELP MESSAGE*/"){}
+class WrongUsageException : public Chip8Exception {
+public:
+    WrongUsageException(const char* arg)
+        : Chip8Exception("Usage: " + string(arg) + " <ROM_PATH> [OPTIONS]\n\n"
+        + "A high-performance Chip-8 interpreter with configurable hardware quirks.\n\n"
+        +"CORE OPTIONS:\n"
+        + "  -h, --help                Display this help message and exit\n"
+        + "  -l, --log <PATH>          Enable instruction logging to file\n"
+        + "  -t, --ticks <N>           Instructions per 60Hz frame [Default: 11] N in [1,15000]\n\n"
+        + "EMULATION QUIRKS (Modern SCHIP by default; Flags enable 1977 logic):\n"
+        + "  -s, --shift               Original Shift (VX = VY before shift)\n"
+        + "  -i, --increment           Original Load/Store (I = I + X + 1)\n"
+        + "  -j, --jump                Original Jump (Jump to NNN + V0)\n"
+        + "  -f, --vf-reset            Original Logic (AND/OR/XOR reset VF to 0)\n"
+        + "  -w, --wrap                Original Display (Sprites wrap screen edges)\n"){}
 };
 
+// 5. Ticks was not a number
+class TicksNotIntException : public Chip8Exception {
+public:
+    TicksNotIntException(const char* arg)
+        : Chip8Exception("Error: " + string(arg) +" is not a valid number for ticks."){}
+};
 
-
-
+// 6. Ticks out of range
+class TicksOutOfRangeException : public Chip8Exception {
+public:
+    TicksOutOfRangeException()
+        : Chip8Exception("Error: ticks range is [1, 5000]."){};
+};
 
 
