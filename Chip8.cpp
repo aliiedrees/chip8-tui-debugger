@@ -236,7 +236,7 @@ void Chip8::IN_8XY0(){
 void Chip8::IN_8XY1(){
     uint8_t& vx = GetVX();
     uint8_t& vy = GetVY();
-    V[F] = 0;
+    if(settings.vfReset) V[F] = 0;
     vx = vx | vy;
     pc += 2;
 }
@@ -245,7 +245,7 @@ void Chip8::IN_8XY1(){
 void Chip8::IN_8XY2(){
     uint8_t& vx = GetVX();
     uint8_t& vy = GetVY();
-    V[F] = 0;
+    if(settings.vfReset) V[F] = 0;
     vx = vx & vy;
     pc += 2;
 }
@@ -254,7 +254,7 @@ void Chip8::IN_8XY2(){
 void Chip8::IN_8XY3(){
     uint8_t& vx = GetVX();
     uint8_t& vy = GetVY();
-    V[F] = 0;
+    if(settings.vfReset) V[F] = 0;
     vx = vx ^ vy;
     pc += 2;
 }
@@ -282,9 +282,15 @@ void Chip8::IN_8XY5(){
 // SHR VX, {, Vy} (SRL)
 void Chip8::IN_8XY6(){
     uint8_t& vx = GetVX();
-    uint8_t& vy = GetVY();
-    V[F] = vy & 0x1;
-    vx = vy >> 1;
+    
+    if (settings.shift){// original
+        uint8_t& vy = GetVY();
+        V[F] = vy & 0x1;
+        vx = vy >> 1;
+    } else {// modern
+        V[F] = vx & 0x1;
+        vx = vx >> 1;
+    }
     pc += 2;
 }
 
@@ -301,10 +307,15 @@ void Chip8::IN_8XY7(){
 // SHL VX, {, VY}
 void Chip8::IN_8XYE(){
     uint8_t& vx = GetVX();
-    uint8_t& vy = GetVY();
-
-    V[F] = (vy >> 7) ? 1 : 0;
-    vx = vy << 1;
+    
+    if (settings.shift){// original
+        uint8_t& vy = GetVY();
+        V[F] = vy & 0x1;
+        vx = vy >> 1;
+    } else {// modern
+        V[F] = vx & 0x1;
+        vx = vx >> 1;
+    }
     pc += 2;
 }
 
@@ -326,9 +337,10 @@ void Chip8::IN_ANNN(){
     pc += 2;
 }
 
-// JP V0, addr (jump to v0 + nnn)
+// JP V0, addr 
 void  Chip8::IN_BNNN(){
-    pc = V[0] + (ir & 0xFFF);
+    if (settings.jump) pc = V[0] + (ir & 0xFFF);
+    else pc = GetVX() + (ir & 0xFFF);
 }
 
 // RND VX, byte 
@@ -341,34 +353,42 @@ void Chip8::IN_CXKK(){
 }
 
 // DRW VX, VY, nibble
-void Chip8::IN_DXYN(){
+void Chip8::IN_DXYN() {
     uint8_t vx = GetVX();
     uint8_t vy = GetVY();
-    uint8_t height = ir & 0xF;
-    V[F] = 0;
-    for (int row = 0; row < height; ++row) {
-        if (vy + row >= DISPLAY_HEIGHT) break;
+    uint8_t height = ir & 0x000F;
+    
+    V[0xF] = 0; 
 
+    for (int row = 0; row < height; ++row) {
         uint8_t spriteByte = memory[I + row];
-        for (int col = 0; col < BYTE; ++col) {
-            if (vx + col >= DISPLAY_WIDTH) break;
-            
+        
+        for (int col = 0; col < 8; ++col) {
             if ((spriteByte & (0x80 >> col)) != 0) {
                 
                 int screenX = vx + col;
                 int screenY = vy + row;
 
-                if (screenX < DISPLAY_WIDTH && screenY < DISPLAY_HEIGHT) {
-                    int index = screenX + (screenY * DISPLAY_WIDTH);
-
-                    if (display[index] == 1) {
-                        V[F] = 1; 
+                if (settings.wrap) {
+                    screenX %= DISPLAY_WIDTH;
+                    screenY %= DISPLAY_HEIGHT;
+                } else {
+                    if (screenX >= DISPLAY_WIDTH || screenY >= DISPLAY_HEIGHT) {
+                        continue; 
                     }
-                    display[index] ^= 1;
                 }
+
+                int index = screenX + (screenY * DISPLAY_WIDTH);
+
+                if (display[index] == 1) {
+                    V[0xF] = 1; 
+                }
+                
+                display[index] ^= 1;
             }
         }
     }
+    
     shouldRender = true;
     pc += 2;
 }
@@ -472,7 +492,7 @@ void Chip8::IN_FX55(){
     for(int i = 0; i <= x; ++i){
         memory[I + i] = V[i];
     }
-   // I += x + 1;
+    if(settings.increment) I += x + 1;
     pc += 2;
 }
 
@@ -482,7 +502,7 @@ void Chip8::IN_FX65(){
     for(int i = 0; i <= x; ++i){
         V[i] = memory[I + i];
     }
-   // I += x + 1;
+    if(settings.increment) I += x + 1;
     pc += 2;
 }
 
