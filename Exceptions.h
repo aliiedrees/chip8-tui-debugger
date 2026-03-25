@@ -44,7 +44,7 @@ public:
         + "A high-performance Chip-8 interpreter with configurable hardware quirks.\n\n"
         +"CORE OPTIONS:\n"
         + "  -h, --help                Display this help message and exit\n"
-        + "  -l, --log <PATH>          Enable instruction logging to file\n"
+        + "  -l, --log <PATH>          Enable instruction logging to file (while running you need to enable the logging)\n"
         + "  -t, --ticks <N>           Instructions per 60Hz frame [Default: 11] N in [1,15000]\n\n"
         + "EMULATION QUIRKS (Modern SCHIP by default; Flags enable 1977 logic):\n"
         + "  -s, --shift               Original Shift (VX = VY before shift)\n"

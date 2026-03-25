@@ -16,7 +16,7 @@ static void PrintUsageMessage(std::ostream& os, const char* arg){
         << "A high-performance Chip-8 interpreter with configurable hardware quirks.\n\n"
         << "CORE OPTIONS:\n"
         << "  -h, --help                Display this help message and exit\n"
-        << "  -l, --log <PATH>          Enable instruction logging to file\n"
+        << "  -l, --log <PATH>          Enable instruction logging to file (while running you need to enable the logging)\n"
         << "  -t, --ticks <N>           Instructions per 60Hz frame [Default: 11] N in [1,5000]\n\n"
         << "EMULATION QUIRKS (Modern SCHIP by default; Flags enable 1977 logic):\n"
         << "  -s, --shift               Original Shift (VX = VY before shift)\n"
@@ -50,6 +50,10 @@ Chip8::Settings Chip8::Settings::ParseArgs(int argc ,const char** argv){
     if (argc < 2) throw WrongUsageException(argv[0]);
     
     Chip8::Settings settings;
+    if (ParseFlag(argv[1]) == Flag::Help){
+        PrintUsageMessage(std::cout, argv[0]); 
+        exit(0);
+    }
     settings.romPath = argv[1];
     for (int i = 2; i < argc; i++){
         Flag flag = ParseFlag(argv[i]);

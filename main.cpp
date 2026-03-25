@@ -61,6 +61,7 @@ int main(int argc, const char** argv) {
         WINDOW* settingsWin = newwin(7, 26, 27, 66);
         WINDOW* disWin = newwin(14, 50, 34, 0);
         WINDOW* memWin = newwin(14, 50, 34, 50);
+        refresh();
         
         wnoutrefresh(displayWin);
         wnoutrefresh(regWin);
@@ -69,8 +70,8 @@ int main(int argc, const char** argv) {
         wnoutrefresh(disWin);
         wnoutrefresh(memWin);
         box(displayWin, 0, 0); 
-        wnoutrefresh(displayWin);
-
+        //wnoutrefresh(displayWin);
+        doupdate();
         bool running = true;
         bool paused = true;
         bool reset = false;
