@@ -4,12 +4,13 @@
 # CHIP-8 Emulator Makefile
 # ==========================================
 
+
 # 1. Compiler and Flags
 CXX      = g++
-# -Iinclude tells the compiler where to find your .h files
-# -g adds debug symbols for GDB
+# Added -fno-omit-frame-pointer for better backtraces
 CXXFLAGS = -std=c++17 -Wall -Wextra -Werror -Iinclude -g
-# -lncurses must be linked at the end to resolve noecho/wrefresh
+# AddressSanitizer flags
+DEBUG_FLAGS = -fsanitize=address -fno-omit-frame-pointer
 LDFLAGS  = -lncursesw
 
 # 2. Target Name
@@ -21,23 +22,27 @@ INCDIR   = include
 OBJDIR   = obj
 
 # 4. Source and Object Files
-# Automatically finds all .cpp files in src/
 SRCS     = $(wildcard $(SRCDIR)/*.cpp)
-# Maps src/filename.cpp to obj/filename.o
 OBJS     = $(SRCS:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 
 # 5. Primary Rules
 all: $(TARGET)
 
-# Linking: The order of $(LDFLAGS) at the end is vital for ncurses
+# Standard build
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
-# Compilation: Compiles each .cpp into a .o file inside the obj/ folder
+# --- DEBUG TARGET ---
+# Use this to catch the Segfault. 
+# It adds ASan to both compilation and linking.
+debug: CXXFLAGS += $(DEBUG_FLAGS)
+debug: LDFLAGS += -fsanitize=address
+debug: rebuild
+	@echo "--- Debug build with AddressSanitizer complete ---"
+
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Create the object directory if it doesn't exist
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
 
@@ -46,7 +51,6 @@ clean:
 	rm -rf $(OBJDIR) $(TARGET)
 	@echo "Cleaned up object files and executable."
 
-# Performs a full clean and then builds from scratch
 rebuild: clean all
 
-.PHONY: all clean rebuild
+.PHONY: all clean rebuild debug

@@ -9,12 +9,15 @@
 using std::ifstream;
 using std::string;
 
-/*  Helper Functions    */
+// =================================================================================================
+// SECTION: Helper Functions
+// =================================================================================================
 
-/*  Print the usage message 
-    os is the output stream
-    arg is the compiled file which is going to be argv[0]
-*/
+/**
+ * @brief Print the usage message 
+ * @param os is the output stream
+ * @param arg is the compiled file which is going to be argv[0]
+ */
 static void PrintUsageMessage(std::ostream& os, const char* arg){
     os << "Usage: " << arg << " <ROM_PATH> [OPTIONS]\n\n"
         << "A high-performance Chip-8 interpreter with configurable hardware quirks.\n\n"
@@ -23,15 +26,17 @@ static void PrintUsageMessage(std::ostream& os, const char* arg){
         << "  -l, --log <PATH>          Enable instruction logging to file (while running you need to enable the logging)\n"
         << "  -t, --ticks <N>           Instructions per 60Hz frame [Default: 11] N in [1,5000]\n\n"
         << "EMULATION QUIRKS (Modern SCHIP by default; Flags enable 1977 logic):\n"
-        << "  -s, --shift               Original Shift (VX = VY before shift)\n"
-        << "  -i, --increment           Original Load/Store (I = I + X + 1)\n"
-        << "  -j, --jump                Original Jump (Jump to NNN + V0)\n"
-        << "  -f, --vf-reset            Original Logic (AND/OR/XOR reset VF to 0)\n"
-        << "  -w, --wrap                Original Display (Sprites wrap screen edges)\n"
+        << "  -s, --shift               Apply Modern Shift (VX = VY before shift)\n"
+        << "  -i, --increment           Apply Modern Load/Store (I = I + X + 1)\n"
+        << "  -j, --jump                Apply Modern Jump (Jump to NNN + V0)\n"
+        << "  -f, --vf-preserve         Apply Modern Logic (AND/OR/XOR reset VF to 0)\n"
+        << "  -w, --wrap                Apply Modern Display (Sprites wrap screen edges)\n"
         << std::endl;
 }
 
-/*  decimal to hex convertion */
+/**
+ * @brief decimal to hex convertion 
+ */
 static std::string toHex(uint16_t val, int width) {
     char buf[16];
     std::snprintf(buf, sizeof(buf), "%0*X", width, val);
@@ -39,7 +44,9 @@ static std::string toHex(uint16_t val, int width) {
 }
 
 
-/* Parse arguments to flags */
+/**
+ *  @brief parse argument to flag 
+ * */
 Flag ParseFlag(const char* arg){
     string flag = string(arg);
     if (flag == "-h" || flag == "--help") return Flag::Help;
@@ -48,13 +55,16 @@ Flag ParseFlag(const char* arg){
     if (flag == "-s" || flag == "--shift") return Flag::Shift;
     if (flag == "-i" || flag == "--increment") return Flag::Increment;
     if (flag == "-j" || flag == "--jump") return Flag::Jump;
-    if (flag == "-f" || flag == "--vf-reset") return Flag::VfReset;
+    if (flag == "-f" || flag == "--vf-preserve") return Flag::VfPreserve;
     if (flag == "-w" || flag == "--wrap") return Flag::Wrap;
     
     return Flag::Unkown;  
 }
 
-/* Parse all the args in the input THROWS EXCEPTION */
+/** 
+ * @brief Parse all the args in the input 
+ * @note COULD THROW EXCEPTION 
+ * */
 Chip8::Settings Chip8::Settings::ParseArgs(int argc ,const char** argv){
     if (argc < 2) throw WrongUsageException(argv[0]);
     
@@ -94,7 +104,7 @@ Chip8::Settings Chip8::Settings::ParseArgs(int argc ,const char** argv){
             case Flag::Shift : settings.shift = true; break;
             case Flag::Increment : settings.increment = true; break;
             case Flag::Jump : settings.jump = true; break;
-            case Flag::VfReset : settings.vfReset = true; break;
+            case Flag::VfPreserve : settings.vfPreserve = true; break;
             case Flag::Wrap : settings.wrap = true; break;
             default:
                 throw WrongUsageException(argv[0]);
@@ -103,9 +113,11 @@ Chip8::Settings Chip8::Settings::ParseArgs(int argc ,const char** argv){
     return settings;
 }
 
-/* to get specific nibble from the istruction
-    each nibble is 4 bits
-    instruction is seperated to 0x[N1][N2][N3][N4]
+
+/** 
+ * @brief to get specific nibble from the istruction
+ *  @note each nibble is 4 bits
+ *  @note instruction is seperated to 0x[N1][N2][N3][N4]
 */
 uint8_t Chip8::GetNibble(int i) const{
     switch (i){
@@ -117,36 +129,52 @@ uint8_t Chip8::GetNibble(int i) const{
     }
 }
 
+/**
+ * @brief get the kk section from the instruction
+ * @note kk is the last 8 bits in the instruction
+ */
 uint8_t Chip8::GetKK() const{
     return (GetNibble(3) << 4) + GetNibble(4);
 }
 
+/**
+ * @brief get the nnn section from the instruction
+ * @note nnn is the last 12 bits in the instruction
+ */
+uint16_t Chip8::GetNNN() const{
+    return ir & 0xFFF;
+}
+/**
+ * @brief get the instruction type
+ * @return type from the enum class OpType
+ */
 OpType Chip8::GetOpType() const{
     return static_cast<OpType>((ir & 0xF000) >> 12);
 }
 
-/* to get the VX in the instruction*/
+/** 
+ * @brief to get the VX in the instruction
+ * @return a refrence to the VX;
+ * */
 uint8_t& Chip8::GetVX(){
     return V[GetNibble(2)];
 }
-/* to get the VX in the instruction (const version)*/
-const uint8_t& Chip8::GetVX() const {
-    return V[GetNibble(2)];
-}
 
-/* to get the VY in the instruction*/
+/** 
+ * @brief to get the VY in the instruction
+ * @return a refrence to the VY;
+ * */
 uint8_t& Chip8::GetVY(){
     return V[GetNibble(3)];
 }
-/* to get the VY in the instruction (const version)*/
-const uint8_t& Chip8::GetVY() const {
-    return V[GetNibble(3)];
-}
-
 
 // font array
 static constexpr int FONTSET_SIZE = 80;
-/* FONT SET DIDNT USE THEM YET BUT HTEY ARE IN THE CHIP MEMORY*/ 
+
+/** 
+ * @brief FONT SET
+ *  @note DIDNT USE THEM YET BUT HTEY ARE IN THE CHIP MEMORY
+ * */ 
 static const uint8_t FONTSET[FONTSET_SIZE] = {
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -166,13 +194,12 @@ static const uint8_t FONTSET[FONTSET_SIZE] = {
     0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 };
 
-// c'tor
+// =================================================================================================
+// SECTION: Constructor + Object prepare
+// =================================================================================================
+
 Chip8::Chip8(const Settings& settings)
-    : dispatch0{&Chip8::IN_NULL},
-      dispatch8{&Chip8::IN_NULL},
-      dispatchE{&Chip8::IN_NULL},
-      dispatchF{&Chip8::IN_NULL},
-      generator(std::random_device{}()),
+    : generator(std::random_device{}()),
       dist(0, 255),
       memory{},
       V{},
@@ -195,7 +222,6 @@ Chip8::Chip8(const Settings& settings)
     generator.seed(rd());
 }
 
-/* loadROM THROWS EXCEPTION */
 void Chip8::LoadROM(){
     ifstream file(settings.romPath, std::ios::ate | std::ios::binary);
 
@@ -224,6 +250,24 @@ void Chip8::LoadROM(){
     }
 }
 
+// =================================================================================================
+// SECTION: Cycle execution + inner functions in cycle
+// =================================================================================================
+
+void Chip8::Cycle() {
+    // check the pc
+    if (pc < START_OF_PROGRAM || pc >= MEMORY_SIZE) {
+        throw PcOutOfBondsException(pc);
+    }
+    LogCycle();
+    Fetch();
+    DecodeExecute();   
+}
+
+/**
+ * @brief the logic behind the logging of a single isntruction
+ * @note COULD THROW InvalidLogPathException
+ */
 void Chip8::LogCycle() const{
     if (settings.logFlag && settings.log){
         string instruction = Disassemble(ir);
@@ -242,35 +286,49 @@ void Chip8::LogCycle() const{
     }
 }
 
+/**
+ * @brief Fetch phase logic
+ */
 void Chip8::Fetch() {
     ir = (memory[pc] << 8) | memory[pc + 1];
     pc += 2;
 }
 
+/**
+ * @brief Decode & Execute phases logic
+ */
 void Chip8::DecodeExecute() {
     OpType opType = GetOpType();
     (this->*dispatch[static_cast<size_t>(opType)])();
 }
 
+/** 
+ * @brief Initialize the dispatch arrays 
+*/
 void Chip8::InitializeDispatches(){
     InitializeMainDispatch();
     InitializeDispatch0();
+    InitializeDispatch5();
     InitializeDispatch8();
+    InitializeDispatch9();
     InitializeDispatchE();
     InitializeDispatchF();
 }
 
+/** 
+ * @brief Initialize Main Dispatch
+*/
 void Chip8::InitializeMainDispatch(){
     dispatch[static_cast<size_t>(OpType::SYSTEM)] = &Chip8::Dispatch0;
     dispatch[static_cast<size_t>(OpType::JUMP)] = &Chip8::IN_1NNN;
     dispatch[static_cast<size_t>(OpType::CALL)] = &Chip8::IN_2NNN;
     dispatch[static_cast<size_t>(OpType::SKIP_EQ_BYTE)] = &Chip8::IN_3XKK;
     dispatch[static_cast<size_t>(OpType::SKIP_NE_BYTE)] = &Chip8::IN_4XKK;
-    dispatch[static_cast<size_t>(OpType::SKIP_EQ_REG)] = &Chip8::IN_5XY0;
+    dispatch[static_cast<size_t>(OpType::SKIP_EQ_REG)] = &Chip8::Dispatch5;
     dispatch[static_cast<size_t>(OpType::SET_REG_BYTE)] = &Chip8::IN_6XKK;
     dispatch[static_cast<size_t>(OpType::ADD_REG_BYTE)] = &Chip8::IN_7XKK;
     dispatch[static_cast<size_t>(OpType::ARITHMETIC)] = &Chip8::Dispatch8;
-    dispatch[static_cast<size_t>(OpType::SKIP_NE_REG)] = &Chip8::IN_9XY0;
+    dispatch[static_cast<size_t>(OpType::SKIP_NE_REG)] = &Chip8::Dispatch9;
     dispatch[static_cast<size_t>(OpType::SET_INDEX)] = &Chip8::IN_ANNN;
     dispatch[static_cast<size_t>(OpType::JUMP_REL)] = &Chip8::IN_BNNN;
     dispatch[static_cast<size_t>(OpType::RANDOM)] = &Chip8::IN_CXKK;
@@ -279,12 +337,28 @@ void Chip8::InitializeMainDispatch(){
     dispatch[static_cast<size_t>(OpType::UTILITY)] = &Chip8::DispatchF;
 }
 
+/** 
+ * @brief Initialize SYSTEM Dispatch 
+*/
 void Chip8::InitializeDispatch0(){
-    dispatch0[0x0] = &Chip8::IN_00E0;
-    dispatch0[0xE] = &Chip8::IN_00EE;
+    dispatch0.fill(&Chip8::IN_NULL);
+    dispatch0[0x00] = &Chip8::IN_0000;
+    dispatch0[0xE0] = &Chip8::IN_00E0;
+    dispatch0[0xEE] = &Chip8::IN_00EE;
 }
 
+/** 
+ * @brief Initialize SKIP_EQ_REG Dispatch
+*/
+void Chip8::InitializeDispatch5(){
+    dispatch5.fill(&Chip8::IN_NULL);
+    dispatch5[0x0] = &Chip8::IN_5XY0;
+}
+/** 
+ * @brief Initialize ARITHMETIC Dispatch
+*/
 void Chip8::InitializeDispatch8(){
+    dispatch8.fill(&Chip8::IN_NULL);
     dispatch8[0x0] = &Chip8::IN_8XY0;
     dispatch8[0x1] = &Chip8::IN_8XY1;
     dispatch8[0x2] = &Chip8::IN_8XY2;
@@ -295,13 +369,27 @@ void Chip8::InitializeDispatch8(){
     dispatch8[0x7] = &Chip8::IN_8XY7;
     dispatch8[0xE] = &Chip8::IN_8XYE;
 }
-
+/** 
+ * @brief Initialize SKIP_NE_REG Dispatch
+*/
+void Chip8::InitializeDispatch9(){
+    dispatch9.fill(&Chip8::IN_NULL);
+    dispatch9[0x0] = &Chip8::IN_9XY0;
+}
+/** 
+ * @brief Initialize INPUT Dispatch
+*/
 void Chip8::InitializeDispatchE(){
-    dispatchE[0x1] = &Chip8::IN_EXA1;
-    dispatchE[0xE] = &Chip8::IN_EX9E;
+    dispatchE.fill(&Chip8::IN_NULL);
+    dispatchE[0x9E] = &Chip8::IN_EX9E;
+    dispatchE[0xA1] = &Chip8::IN_EXA1;
 }
 
+/** 
+ * @brief Initialize ARITHMETIC Dispatch 
+*/
 void Chip8::InitializeDispatchF(){
+    dispatchF.fill(&Chip8::IN_NULL);
     dispatchF[0x07] = &Chip8::IN_FX07;
     dispatchF[0x0A] = &Chip8::IN_FX0A;
     dispatchF[0x15] = &Chip8::IN_FX15;
@@ -313,34 +401,63 @@ void Chip8::InitializeDispatchF(){
     dispatchF[0x65] = &Chip8::IN_FX65;
 }
 
+/** 
+ *  @brief SYSTEM Dispatch 
+ *  executes the proper instruction from the SYSTEM type
+*/
 void Chip8::Dispatch0(){
-    (this->*dispatch0[Chip8::GetNibble(4)])();
-}
-
-void Chip8::Dispatch8(){
-    (this->*dispatch0[Chip8::GetNibble(4)])();
-}
-
-void Chip8::DispatchE(){
-    (this->*dispatch0[Chip8::GetNibble(4)])();
-}
-
-void Chip8::DispatchF(){
     (this->*dispatch0[Chip8::GetKK()])();
 }
 
-/* Cycle THROWS EXCEPTION */
-void Chip8::Cycle() {
-    // check the pc
-    if (pc < START_OF_PROGRAM || pc >= MEMORY_SIZE) {
-        throw PcOutOfBondsException(pc);
-    }
-    
-    Fetch();
-    DecodeExecute();
-    LogCycle();
+/** 
+ * @brief SKIP_EQ_REG Dispatch 
+ * executes the proper instruction from the SKIP_EQ_REG type
+*/
+void Chip8::Dispatch5(){
+    (this->*dispatch5[Chip8::GetNibble(4)])();
 }
 
+/** 
+ * @brief ARITHMETIC Dispatch 
+ * executes the proper instruction from the ARITHMETIC type
+*/
+void Chip8::Dispatch8(){
+    (this->*dispatch8[Chip8::GetNibble(4)])();
+}
+
+/** 
+ * @brief SKIP_NE_REG Dispatch 
+ * executes the proper instruction from the SKIP_NE_REG type
+*/
+void Chip8::Dispatch9(){
+    (this->*dispatch9[Chip8::GetNibble(4)])();
+}
+
+/** 
+ * @brief INPUT Dispatch 
+ *  executes the proper instruction from the INPUT type
+*/
+void Chip8::DispatchE(){
+    (this->*dispatchE[Chip8::GetKK()])();
+}
+
+/**
+ *  @brief UTILITY Dispatch 
+ *  executes the proper instruction from the UTILITY type
+ */
+void Chip8::DispatchF(){
+    (this->*dispatchF[Chip8::GetKK()])();
+}
+
+// =================================================================================================
+// SECTION: Rest of UI
+// =================================================================================================
+
+void Chip8::Restart() {
+    *this = Chip8(settings);
+    this->LoadROM();
+    this->settings.restart = true;
+}
 void Chip8::SetKey(uint8_t key, bool isPressed){
     keyboard[key] = isPressed;
 }
@@ -389,7 +506,6 @@ void Chip8::LoadState(const Chip8::State& state){
     settings = state.settings;
 }
 
-/* THROWS EXCEPTION*/
 void Chip8::ToggleLog(ofstream& logFile){
     if (settings.logFlag){
         settings.log = !settings.log;
@@ -421,7 +537,7 @@ std::string Chip8::Disassemble(uint16_t ir) {
             if (kk == 0xE0) return "CLS";
             if (kk == 0xEE) return "RET";
             if (nnn == 0x000) return "--- END OF PROGRAM ---";
-            else throw UnknownOpcodeException(ir);
+            else return "UNKNOWN OPCODE";
         case 0x1: return "JP " + toHex(nnn, 3);
         case 0x2: return "CALL " + toHex(nnn, 3);
         case 0x3: return "SE V" + toHex(n2, 1) + ", " + toHex(kk, 2);
@@ -440,8 +556,8 @@ std::string Chip8::Disassemble(uint16_t ir) {
                 case 0x6: return "SHR V" + toHex(n2, 1);
                 case 0x7: return "SUBN V" + toHex(n2, 1) + ", V" + toHex(n3, 1);
                 case 0xE: return "SHL V" + toHex(n2, 1);
+                default: return "UNKNOWN OPCODE";
             }
-            break;
         case 0x9: return "SNE V" + toHex(n2, 1) + ", V" + toHex(n3, 1);
         case 0xA: return "LD I, " + toHex(nnn, 3);
         case 0xB: return "JP V0, " + toHex(nnn, 3);
@@ -450,7 +566,7 @@ std::string Chip8::Disassemble(uint16_t ir) {
         case 0xE:
             if (kk == 0x9E) return "SKP V" + toHex(n2, 1);
             if (kk == 0xA1) return "SKNP V" + toHex(n2, 1);
-            break;
+            else return "UNKNOWN OPCODE";
         case 0xF:
             switch (kk) {
                 case 0x07: return "LD V" + toHex(n2, 1) + ", DT";
@@ -462,10 +578,10 @@ std::string Chip8::Disassemble(uint16_t ir) {
                 case 0x33: return "LD B, V" + toHex(n2, 1);
                 case 0x55: return "LD [I], V" + toHex(n2, 1);
                 case 0x65: return "LD V" + toHex(n2, 1) + ", [I]";
+                default: return "UNKNOWN OPCODE";
             }
-            break;
     }
-    throw UnknownOpcodeException(ir);
+    throw UnknownOpcodeException(ir); // shouldn't reach this line since all the cases 0x0-0xF are in switch
 }
 
 

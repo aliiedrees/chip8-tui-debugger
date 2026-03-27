@@ -15,7 +15,7 @@ using std::array;
     I realised that there is no "right" way
         to implement the instructions and 
         there is a modern way and original way
-    so I came up with the idea to have a flags
+    so I came up with the idea to have flags
         that trigger to which version of the 
         instruction we want to use
 
@@ -32,7 +32,7 @@ enum class Flag {
     Shift, 
     Increment, 
     Jump, 
-    VfReset, 
+    VfPreserve, 
     Wrap
 };
 
@@ -68,13 +68,14 @@ private:
 
     using OpFunc = void (Chip8::*)();
 public:
-    /* Settings
-        I will be handling the settings and the flags 
-        using this struct which eventually will be 
-        a member in the CHIP8 class.
-        in short the settings will be triggered using
-        flags and paths in the arguments
-    */
+    /** 
+        * @struct Settings
+        * @brief Handles emulator configuration and quirk flags.
+        * * This struct is a member of the CHIP8 class. Settings are 
+        * typically toggled via command-line arguments or config files.
+        *
+        * @note if the flag is not triggered the modern quirk is set by default.
+        */
     struct Settings { 
         string romPath = "";
         string logPath = "trace.log"; // default
@@ -84,17 +85,20 @@ public:
         bool increment = false;
         int ticksPerFrame = 11; // default
         bool jump = false;
-        bool vfReset = false;
+        bool vfPreserve = false;
         bool wrap = false;
-
+       
+        // run time settings
+        bool running = true;
+        bool paused = true;
+        bool restart = false;
         static Chip8::Settings ParseArgs(int argc ,const char** argv);
     };
     
-    /* State
-        state is used to take a snapshot of the
-        current state of the chip
-        will be useful later when implementing
-        the backwards feature
+    /** 
+        * @struct State
+        * @brief state is used to take a snapshot of the current state of the chip
+        * @note will be useful later when implementing the backwards feature.
     */
     struct State{
         uint8_t V[16];
@@ -109,9 +113,19 @@ public:
         Chip8::Settings settings;
     };
 
-    Chip8(const Settings& settings); // c'tor
-    void LoadROM(); 
-    void Cycle(); // fetch decode execute
+    explicit Chip8(const Settings& settings);
+    void LoadROM();
+    /**
+     * @brief runs a single instruction and logs it.
+     * @details runs a single instruction through the three stages fetch decode execute
+     * + logs the instruction in the log in case log is enabled.
+     * @note COULD THROW EXCEPTION
+     *  */ 
+    void Cycle();
+    /**
+     * @brief Restarts the program
+     */
+    void Restart();
     void SetKey(uint8_t key, bool isPressed);
     const uint8_t* GetDisplay() const {return display;}
     void ActivateDT();
@@ -120,91 +134,83 @@ public:
     void ToggleRender() {shouldRender = !shouldRender;}
     Chip8::State GetState() const;
     void LoadState(const Chip8::State& state);
+    /**
+     * @brief Turn logging on/off
+     * @note COULD THROW EXCEPTION
+     */
     void ToggleLog(ofstream& logFile);
-    bool Logging() const {return settings.log;}
+    bool IsLogging() const {return settings.log;}
     bool LogFlag() const {return settings.logFlag;}
+    bool IsRunning() const {return settings.running;}
+    void Stop() {settings.running = false;}
+    bool IsPaused() const {return settings.paused;}
+    void TogglePaused() { settings.paused = !settings.paused;}
+    bool ShouldRestart() const {return settings.restart;}
+    void ToggleRestart() { settings.restart = !settings.restart;}
+
+
     static std::string Disassemble(const uint16_t ir); ///
 private:
     void LogCycle() const;
 
-    /* Instructions
-    */
-    void IN_00E0(); void IN_00EE(); void IN_1NNN(); void IN_2NNN();
-    void IN_3XKK(); void IN_4XKK(); void IN_5XY0(); void IN_6XKK();
-    void IN_7XKK(); void IN_8XY0(); void IN_8XY1(); void IN_8XY2();
-    void IN_8XY3(); void IN_8XY4(); void IN_8XY5(); void IN_8XY6();
-    void IN_8XY7(); void IN_8XYE(); void IN_9XY0(); void IN_ANNN();
-    void IN_BNNN(); void IN_CXKK(); void IN_DXYN(); void IN_EX9E();
-    void IN_EXA1(); void IN_FX07(); void IN_FX0A(); void IN_FX15();
-    void IN_FX18(); void IN_FX1E(); void IN_FX29(); void IN_FX33();
-    void IN_FX55(); void IN_FX65(); void IN_NULL();
+    /* --- Instructions ---*/
 
-    /* SYSTEM Dispatch 
-        executes the proper instruction from the SYSTEM type
-    */
+    void IN_0000(); void IN_00E0(); void IN_00EE(); void IN_1NNN(); 
+    void IN_2NNN(); void IN_3XKK(); void IN_4XKK(); void IN_5XY0(); 
+    void IN_6XKK(); void IN_7XKK(); void IN_8XY0(); void IN_8XY1(); 
+    void IN_8XY2(); void IN_8XY3(); void IN_8XY4(); void IN_8XY5(); 
+    void IN_8XY6(); void IN_8XY7(); void IN_8XYE(); void IN_9XY0();
+    void IN_ANNN(); void IN_BNNN(); void IN_CXKK(); void IN_DXYN();
+    void IN_EX9E(); void IN_EXA1(); void IN_FX07(); void IN_FX0A(); 
+    void IN_FX15(); void IN_FX18(); void IN_FX1E(); void IN_FX29();
+    void IN_FX33(); void IN_FX55(); void IN_FX65(); void IN_NULL();
+    
+    void Fetch();
+    void DecodeExecute();
+ 
+    void InitializeDispatches();
+    void InitializeMainDispatch();
+    void InitializeDispatch0();
+    void InitializeDispatch5();
+    void InitializeDispatch8();
+    void InitializeDispatch9();
+    void InitializeDispatchE();
+    void InitializeDispatchF();
+
     void Dispatch0();
-    /* ARITHMETIC Dispatch 
-        executes the proper instruction from the ARITHMETIC type
-    */
+    void Dispatch5();
     void Dispatch8();
-    /* INPUT Dispatch 
-        executes the proper instruction from the INPUT type
-    */
+    void Dispatch9();
     void DispatchE();
-    /* UTILITY Dispatch 
-        executes the proper instruction from the UTILITY type
-    */
     void DispatchF();
+    
+
+    uint8_t& GetVX();
+    uint8_t& GetVY();
+    uint8_t GetNibble(int i) const;
+    uint8_t GetKK() const;
+    uint16_t GetNNN() const;
+    OpType GetOpType() const;
+    
     /* Main Dispatch
     */
     array<OpFunc, 0xF + 1> dispatch;
     /* Sub Dispatch for the SYSTEM type
     */
-    array<OpFunc, 0xF + 1> dispatch0;
+    array<OpFunc, 0xFF + 1> dispatch0;
+    /* Sub Dispatch to control unknown ops in 0x5 type*/
+    array<OpFunc, 0xF + 1> dispatch5;
     /* Sub Dispatch for the ARITHMETIC type
-    */
+    */    
     array<OpFunc, 0xF + 1> dispatch8;
+    /* Sub Dispatch to control unknown ops in 0x9 type*/
+    array<OpFunc, 0xF + 1> dispatch9;
     /* Sub Dispatch for the INPUT type
     */
-    array<OpFunc, 0xF + 1> dispatchE;
+    array<OpFunc, 0xFF + 1> dispatchE;
     /* Sub Dispatch for the UTILITY type
     */
     array<OpFunc, 0xFF + 1> dispatchF;
-    
-    /* Fetch Phase in cycle
-    */
-    void Fetch();
-    /* Decode & Exceute Phase in cycle
-    */
-    void DecodeExecute();
-
-    /* Initialize the dispatch arrays 
-    */
-    void InitializeDispatches();
-    /* Initialize Main Dispatch
-    */
-    void InitializeMainDispatch();
-    /* Initialize SYSTEM Dispatch
-    */
-    void InitializeDispatch0();
-    /* Initialize ARITHMETIC Dispatch
-    */
-    void InitializeDispatch8();
-    /* Initialize INPUT Dispatch
-    */
-    void InitializeDispatchE();
-    /* Initialize ARITHMETIC Dispatch
-    */
-    void InitializeDispatchF();
-
-    uint8_t& GetVX();
-    const uint8_t& GetVX() const; 
-    uint8_t& GetVY();
-    const uint8_t& GetVY() const;
-    uint8_t GetNibble(int i) const;
-    uint8_t GetKK() const;
-    OpType GetOpType() const;
-    
     
     // random generator
     std::mt19937 generator;
@@ -224,7 +230,7 @@ private:
 
     bool shouldRender;
     uint8_t display[DISPLAY_HEIGHT * DISPLAY_WIDTH]; // display in pixles
-    uint8_t keyboard[F+1]; // keyboard 0-F (in hex)
+    uint8_t keyboard[0xF+1]; // keyboard 0-F (in hex)
 
     int waitingForKeyIndex = -1; // -1 means we aren't waiting
 

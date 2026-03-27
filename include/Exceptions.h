@@ -47,11 +47,11 @@ public:
         + "  -l, --log <PATH>          Enable instruction logging to file (while running you need to enable the logging)\n"
         + "  -t, --ticks <N>           Instructions per 60Hz frame [Default: 11] N in [1,15000]\n\n"
         + "EMULATION QUIRKS (Modern SCHIP by default; Flags enable 1977 logic):\n"
-        + "  -s, --shift               Original Shift (VX = VY before shift)\n"
-        + "  -i, --increment           Original Load/Store (I = I + X + 1)\n"
-        + "  -j, --jump                Original Jump (Jump to NNN + V0)\n"
-        + "  -f, --vf-reset            Original Logic (AND/OR/XOR reset VF to 0)\n"
-        + "  -w, --wrap                Original Display (Sprites wrap screen edges)\n"){}
+        + "  -s, --shift               Apply Modern Shift (VX = VY before shift)\n"
+        + "  -i, --increment           Apply Modern Load/Store (I = I + X + 1)\n"
+        + "  -j, --jump                Apply Modern Jump (Jump to NNN + V0)\n"
+        + "  -f, --vf-preserve         Apply Modern Logic (AND/OR/XOR reset VF to 0)\n"
+        + "  -w, --wrap                Apply Modern Display (Sprites wrap screen edges)\n"){}
 };
 
 // 5. Ticks was not a number

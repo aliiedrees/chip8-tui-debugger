@@ -72,24 +72,19 @@ int main(int argc, const char** argv) {
         box(displayWin, 0, 0); 
         //wnoutrefresh(displayWin);
         doupdate();
-        bool running = true;
-        bool paused = true;
-        bool reset = false;
         int key_timer[16] = {0}; // acts as a latch for the key
         
-        while (running){
+        while (chip8.IsRunning()){
             auto startTime = std::chrono::high_resolution_clock::now();
             int c = getch();
 
             if (c == 27) {
-                running = false; 
+                chip8.Stop(); 
                 break;
-            } else if (c == KEY_F(6)) paused = !paused;
-            else if (c == KEY_F(5) && paused) chip8.Cycle();
+            } else if (c == KEY_F(6)) chip8.TogglePaused();
+            else if (c == KEY_F(5) && chip8.IsPaused()) chip8.Cycle();
             else if (c == KEY_F(8)){ // reset
-                chip8 = Chip8(settings);
-                chip8.LoadROM();
-                reset = true;
+                chip8.Restart();
             }else if (c == KEY_F(9)){
                 chip8.ToggleLog(logFile);
             }else if (c != ERR) {
@@ -111,11 +106,13 @@ int main(int argc, const char** argv) {
                 }
             }
 
-            if (!paused && !reset){ // ~480 hz by default 
+            if (!chip8.IsPaused() && !chip8.ShouldRestart()){ // ~480 hz by default 
                 for (int i = 0; i < settings.ticksPerFrame; ++i) {
                     chip8.Cycle();
-                    if (!running) break;
+                    if (!chip8.IsRunning()) break;
                 }
+                // @fixme i think the logic is wrong in term of when do decrement the timers
+                // they must decrease at exactly 60hz
                 chip8.ActivateDT();
                 chip8.ActivateST();
             }
@@ -125,7 +122,7 @@ int main(int argc, const char** argv) {
             drawSettings(settingsWin, chip8.GetState().settings);
             drawDissassembly(disWin, chip8.GetState());
 
-            if (chip8.ShouldRender() || reset){
+            if (chip8.ShouldRender() || chip8.ShouldRestart()){
                 box(displayWin, 0, 0); 
                 const uint8_t *display = chip8.GetDisplay();
                 for (int y = 0; y < 32; ++y){
@@ -137,8 +134,8 @@ int main(int argc, const char** argv) {
                     // Draw the entire row at once (starting at col 1 to avoid the border)
                     mvwaddstr(displayWin, y + 1, 1, row.c_str());
                 }
-                chip8.ToggleRender();
-                reset = false;
+                if (chip8.ShouldRender()) chip8.ToggleRender();
+                if (chip8.ShouldRestart()) chip8.ToggleRestart();
             }
             wnoutrefresh(displayWin);
             doupdate();
@@ -151,7 +148,7 @@ int main(int argc, const char** argv) {
         }
         endwin();
         if(chip8.LogFlag()){
-            if(chip8.Logging()){
+            if(chip8.IsLogging()){
                 logFile << "---LOG END---" << std::endl;
                 logFile << "Emulator Terminated Safely." << std::endl;
                 logFile.close();
@@ -168,6 +165,7 @@ int main(int argc, const char** argv) {
         return EXIT_SUCCESS;
     } 
     catch (const std::exception& e){
+        erase();
         endwin();
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
@@ -232,12 +230,12 @@ void drawSettings(WINDOW* win, const Chip8::Settings& settings){
     box(win, 0, 0);
 
     mvwprintw(win, 1, 4, " --- SETTINGS ---");
-    string shiftStatus = (settings.shift) ? "ORG" : "MOD";
-    string incrementStatus = (settings.increment) ? "ORG" : "MOD";
-    string jumpStatus = (settings.jump) ? "ORG" : "MOD";
-    string logStatus = (settings.logFlag) ? ((settings.log) ? "ON" : "OFF") : "DISABLED";
-    string vfStatus = (settings.vfReset) ? "ORG" : "MOD";
-    string wrapStatus = (settings.wrap) ? "ORG" : "MOD";
+    string shiftStatus = (settings.shift) ? "MOD" : "LEG";
+    string incrementStatus = (settings.increment) ? "MOD" : "LEG";
+    string jumpStatus = (settings.jump) ? "MOD" : "LEG";
+    string logStatus = (settings.logFlag) ? ((settings.log) ? "MOD" : "LEG") : "DISABLED";
+    string vfStatus = (settings.vfPreserve) ? "MOD" : "LEG";
+    string wrapStatus = (settings.wrap) ? "MOD" : "LEG";
 
     mvwprintw(win, 3, 4, "S: %s", shiftStatus.c_str());
     mvwprintw(win, 4, 4, "I: %s", incrementStatus.c_str());

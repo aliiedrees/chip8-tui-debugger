@@ -3,6 +3,11 @@
 
 // chip8 instructions
 
+// EMPTY INSTRUCTIO ( STOP)
+void Chip8::IN_0000(){
+    settings.running = false;
+}
+
 // CLS (clear display)
 void Chip8::IN_00E0(){
     for (int i = 0 ; i < DISPLAY_HEIGHT * DISPLAY_WIDTH; i++){
@@ -59,13 +64,13 @@ void Chip8::IN_5XY0(){
 // LD VX, byte (set vx = kk)
 void Chip8::IN_6XKK(){
     uint8_t& vx = GetVX();
-    vx = ir & 0x00FF;
+    vx = GetKK();
 }
 
 // ADD VX, byte
 void Chip8::IN_7XKK(){
     uint8_t& vx = GetVX();
-    vx += ir & 0x00FF;
+    vx += GetKK();
 }
 
 // LD VX, VY (vx = vy)
@@ -79,7 +84,7 @@ void Chip8::IN_8XY0(){
 void Chip8::IN_8XY1(){
     uint8_t& vx = GetVX();
     uint8_t& vy = GetVY();
-    if(settings.vfReset) V[F] = 0;
+    if(!settings.vfPreserve) V[F] = 0;
     vx = vx | vy;
 }
 
@@ -87,7 +92,7 @@ void Chip8::IN_8XY1(){
 void Chip8::IN_8XY2(){
     uint8_t& vx = GetVX();
     uint8_t& vy = GetVY();
-    if(settings.vfReset) V[F] = 0;
+    if(!settings.vfPreserve) V[F] = 0;
     vx = vx & vy;
 }
 
@@ -95,7 +100,7 @@ void Chip8::IN_8XY2(){
 void Chip8::IN_8XY3(){
     uint8_t& vx = GetVX();
     uint8_t& vy = GetVY();
-    if(settings.vfReset) V[F] = 0;
+    if(!settings.vfPreserve) V[F] = 0;
     vx = vx ^ vy;
 }
 
@@ -121,13 +126,13 @@ void Chip8::IN_8XY5(){
 void Chip8::IN_8XY6(){
     uint8_t& vx = GetVX();
     
-    if (settings.shift){// original
+    if (settings.shift){// MODERN
+        V[F] = vx & 0x1;
+        vx = vx >> 1;
+    } else {// LEGACY
         uint8_t& vy = GetVY();
         V[F] = vy & 0x1;
         vx = vy >> 1;
-    } else {// modern
-        V[F] = vx & 0x1;
-        vx = vx >> 1;
     }
 }
 
@@ -144,13 +149,13 @@ void Chip8::IN_8XY7(){
 void Chip8::IN_8XYE() {
     uint8_t& vx = GetVX();
     
-    if (settings.shift) { // original logic
+    if (settings.shift) { // MODERN
+        V[F] = (vx & 0x80) >> 7; 
+        vx = vx << 1;
+    } else { // LEGACY
         uint8_t& vy = GetVY();
         V[F] = (vy & 0x80) >> 7; 
         vx = vy << 1;
-    } else { // modern logic
-        V[F] = (vx & 0x80) >> 7; 
-        vx = vx << 1;
     }
 }
 
@@ -169,8 +174,8 @@ void Chip8::IN_ANNN(){
 
 // JP V0, addr 
 void  Chip8::IN_BNNN(){
-    if (settings.jump) pc = V[0] + (ir & 0xFFF);
-    else pc = GetVX() + (ir & 0xFFF);
+    if (settings.jump) pc = GetVX() + GetNNN();
+    else pc = V[0] + GetNNN();
 }
 
 // RND VX, byte 
@@ -181,43 +186,60 @@ void Chip8::IN_CXKK(){
     vx = rnd & kk;
 }
 
-// DRW VX, VY, nibble
+/**
+ * @brief DXYN: Draw sprite at (VX, VY) with height N
+ * Legacy: Coordinates wrap initially, then clip pixels.
+ * Modern: Pixels wrap around the screen.
+ */
 void Chip8::IN_DXYN() {
-    uint8_t vx = GetVX() % DISPLAY_WIDTH; 
-    uint8_t vy = GetVY() % DISPLAY_HEIGHT;
-    uint8_t height = ir & 0x000F; 
-    
-    V[0xF] = 0; 
+    // 1. Initial coordinates are ALWAYS modulo the screen size (Legacy/Modern shared)
+    uint8_t startX = V[GetNibble(2)] % DISPLAY_WIDTH;
+    uint8_t startY = V[GetNibble(3)] % DISPLAY_HEIGHT;
+    uint8_t height = GetNibble(4);
 
-    for (int row = 0; row < height; ++row) {
+    V[0xF] = 0; // Reset collision flag
+
+    for (int row = 0; row < height; row++) {
         uint8_t spriteByte = memory[I + row];
-        
-        for (int col = 0; col < 8; ++col) {
+        int currentY = startY + row;
+
+        // --- VERTICAL HANDLING ---
+        // Legacy: If sprite goes off the bottom, stop drawing it.
+        if (!settings.wrap && currentY >= DISPLAY_HEIGHT) {
+            break; 
+        }
+        // Modern: Wrap the Y coordinate.
+        if (settings.wrap) {
+            currentY %= DISPLAY_HEIGHT;
+        }
+
+        for (int col = 0; col < 8; col++) {
+            // Check if the specific bit in the sprite byte is 'on'
             if ((spriteByte & (0x80 >> col)) != 0) {
-                
-                int screenX = vx + col;
-                int screenY = vy + row;
+                int currentX = startX + col;
 
+                // --- HORIZONTAL HANDLING ---
+                // Legacy: If pixel goes off the right edge, skip this specific pixel.
+                if (!settings.wrap && currentX >= DISPLAY_WIDTH) {
+                    continue; // Skip pixel, but continue to next in row
+                }
+                // Modern: Wrap the X coordinate.
                 if (settings.wrap) {
-                    screenX %= DISPLAY_WIDTH;
-                    screenY %= DISPLAY_HEIGHT;
-                } else {
-                    if (screenX >= DISPLAY_WIDTH || screenY >= DISPLAY_HEIGHT) {
-                        continue; 
-                    }
+                    currentX %= DISPLAY_WIDTH;
                 }
 
-                int index = screenX + (screenY * DISPLAY_WIDTH);
+                int index = currentX + (currentY * DISPLAY_WIDTH);
 
+                // Collision detection: If screen pixel is already 1, set VF to 1
                 if (display[index] == 1) {
-                    V[0xF] = 1; 
+                    V[0xF] = 1;
                 }
-                
+
+                // XOR the pixel onto the screen
                 display[index] ^= 1;
             }
         }
     }
-    
     shouldRender = true;
 }
 
@@ -227,16 +249,20 @@ void Chip8::IN_EX9E(){
     /*if (vx > (uint8_t)0xFF){
         return;
     }*/
-    if(keyboard[vx]) pc += 2;
+    if(vx < 0xF + 1){
+        if(keyboard[vx]) pc += 2;
+    }
 }
 
 // SKNP VX
 void Chip8::IN_EXA1(){
-    uint8_t vx = GetVX();
+    uint8_t& vx = GetVX();
     /*if (vx > (uint8_t)0xFF){
         return;
     }*/
-    if(!keyboard[vx]) pc += 2;
+    if(vx < 0xF + 1){
+        if(!keyboard[vx]) pc += 2;
+    }
 }
 
 // LS VX, DT
@@ -303,7 +329,7 @@ void Chip8::IN_FX55(){
     for(int i = 0; i <= x; ++i){
         memory[I + i] = V[i];
     }
-    if(settings.increment) I += x + 1;
+    if(!settings.increment) I += x + 1;
 }
 
 // LD VX, [I]
@@ -312,7 +338,7 @@ void Chip8::IN_FX65(){
     for(int i = 0; i <= x; ++i){
         V[i] = memory[I + i];
     }
-    if(settings.increment) I += x + 1;
+    if(!settings.increment) I += x + 1;
 }
 
 // throw unkown isntruction
