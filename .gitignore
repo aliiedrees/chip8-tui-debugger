@@ -2,3 +2,5 @@
 chip8_emu
 main.o
 Chip8.o
+obj/*
+trace.log
