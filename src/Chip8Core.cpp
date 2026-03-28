@@ -29,7 +29,7 @@ static void PrintUsageMessage(std::ostream& os, const char* arg){
         << "  -s, --shift               Apply Modern Shift (VX = VY before shift)\n"
         << "  -i, --increment           Apply Modern Load/Store (I = I + X + 1)\n"
         << "  -j, --jump                Apply Modern Jump (Jump to NNN + V0)\n"
-        << "  -f, --vf-preserve         Apply Modern Logic (AND/OR/XOR reset VF to 0)\n"
+        << "  -f, --vf-preserve         Apply Modern Logic (AND/OR/XOR preserve VF to 0)\n"
         << "  -w, --wrap                Apply Modern Display (Sprites wrap screen edges)\n"
         << std::endl;
 }
@@ -259,8 +259,8 @@ void Chip8::Cycle() {
     if (pc < START_OF_PROGRAM || pc >= MEMORY_SIZE) {
         throw PcOutOfBondsException(pc);
     }
-    LogCycle();
     Fetch();
+    LogCycle();
     DecodeExecute();   
 }
 

@@ -248,6 +248,7 @@ void drawSettings(WINDOW* win, const Chip8::Settings& settings){
 }
 
 void drawDissassembly(WINDOW* win, const Chip8::State& state){
+    werase(win);
     box(win ,0 ,0);
     mvwprintw(win, 1 , 2, "--- DISASSEMBLY ---");
     int y = 3;
