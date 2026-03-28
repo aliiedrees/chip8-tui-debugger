@@ -4,7 +4,7 @@
 
 *Note: This project is currently in the Architecture & Design phase. Active development is scheduled for Summer 2026.*
 
-**Current Status:**  Planning & Architecture Phase
+**Current Status:**  Implementation, Special Features
 
 ## The Goal
 This project aims to build a **"Transparent Computer."** It renders the emulation inside a Linux terminal using **Ncurses**, visualizing the internal state of the machine alongside the display.
