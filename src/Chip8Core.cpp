@@ -212,6 +212,8 @@ Chip8::Chip8(const Settings& settings)
       shouldRender(false),
       display{},
       keyboard{},
+      heatmap{},
+      history(std::make_unique<State[]>(HISTORY_SIZE)),
       settings(settings)
 {
     InitializeDispatches();
@@ -259,6 +261,7 @@ void Chip8::Cycle() {
     if (pc < START_OF_PROGRAM || pc >= MEMORY_SIZE) {
         throw PcOutOfBondsException(pc);
     }
+    PushHistory(); 
     Fetch();
     LogCycle();
     DecodeExecute();   
@@ -290,6 +293,7 @@ void Chip8::LogCycle() const{
  * @brief Fetch phase logic
  */
 void Chip8::Fetch() {
+    heatmap[pc]++;
     ir = (memory[pc] << 8) | memory[pc + 1];
     pc += 2;
 }
@@ -457,6 +461,7 @@ void Chip8::Restart() {
     *this = Chip8(settings);
     this->LoadROM();
     this->settings.restart = true;
+    // historyHead and historyCount reset automatically via constructor
 }
 void Chip8::SetKey(uint8_t key, bool isPressed){
     keyboard[key] = isPressed;
@@ -476,9 +481,11 @@ Chip8::State Chip8::GetState() const {
         state.V[i] = V[i];
         state.stack[i] = stack[i];
     }
-    for (int i = 0; i <= 0xFFF; i++){
+    for (int i = 0; i <= MEMORY_SIZE; i++){
         state.memory[i] = memory[i];
+        state.heatmap[i] = heatmap[i];
     }
+    for (int i = 0; i < DISPLAY_WIDTH * DISPLAY_HEIGHT; i++) state.display[i] = display[i];
     state.pc = pc;
     state.ir = ir;
     state.dt = dt;
@@ -494,9 +501,11 @@ void Chip8::LoadState(const Chip8::State& state){
         V[i] = state.V[i];
         stack[i] = state.stack[i];
     }
-    for (int i = 0; i <= 0xFFF; i++){
+    for (int i = 0; i <= MEMORY_SIZE; i++){
         memory[i] = state.memory[i];
+        heatmap[i] = state.heatmap[i];
     }
+    for (int i = 0; i < DISPLAY_WIDTH * DISPLAY_HEIGHT; i++) display[i] = state.display[i];
     pc = state.pc;
     ir = state.ir;
     dt = state.dt;
@@ -584,4 +593,17 @@ std::string Chip8::Disassemble(uint16_t ir) {
     throw UnknownOpcodeException(ir); // shouldn't reach this line since all the cases 0x0-0xF are in switch
 }
 
+void Chip8::PushHistory() {
+    history[historyHead] = GetState();
+    historyHead = (historyHead + 1) % HISTORY_SIZE;
+    if (historyCount < HISTORY_SIZE) historyCount++;
+}
 
+bool Chip8::StepBack() {
+    if (historyCount == 0) return false;
+    historyHead = (historyHead - 1 + HISTORY_SIZE) % HISTORY_SIZE;
+    historyCount--;
+    LoadState(history[historyHead]);
+    shouldRender = true;
+    return true;
+}

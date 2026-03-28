@@ -5,7 +5,8 @@
 #include <random>
 #include <iostream>
 #include <array>
-
+#include <cstring>
+#include <memory>
 using std::string;
 using std::ofstream;
 using std::array;
@@ -65,6 +66,7 @@ private:
     static constexpr int DISPLAY_WIDTH = 64;
     static constexpr int DISPLAY_HEIGHT = 32;
     static constexpr int BYTE = 8;
+    static constexpr int HISTORY_SIZE = 600;
 
     using OpFunc = void (Chip8::*)();
 public:
@@ -110,6 +112,8 @@ public:
         uint8_t st;
         uint16_t stack[0xF + 1];
         uint8_t memory[MEMORY_SIZE];
+        uint32_t heatmap[MEMORY_SIZE];
+        uint8_t display[64 * 32];
         Chip8::Settings settings;
     };
 
@@ -147,8 +151,11 @@ public:
     void TogglePaused() { settings.paused = !settings.paused;}
     bool ShouldRestart() const {return settings.restart;}
     void ToggleRestart() { settings.restart = !settings.restart;}
-
-
+    const uint32_t* GetHeatmap() const { return heatmap; }
+    void ResetHeatmap() { memset(heatmap, 0, sizeof(heatmap)); }
+    bool StepBack();
+    bool CanStepBack() const { return historyCount > 0; }
+    int HistoryCount() const { return historyCount; }
     static std::string Disassemble(const uint16_t ir); ///
 private:
     void LogCycle() const;
@@ -191,7 +198,7 @@ private:
     uint8_t GetKK() const;
     uint16_t GetNNN() const;
     OpType GetOpType() const;
-    
+    void PushHistory();
     /* Main Dispatch
     */
     array<OpFunc, 0xF + 1> dispatch;
@@ -231,10 +238,11 @@ private:
     bool shouldRender;
     uint8_t display[DISPLAY_HEIGHT * DISPLAY_WIDTH]; // display in pixles
     uint8_t keyboard[0xF+1]; // keyboard 0-F (in hex)
-
+    uint32_t heatmap[MEMORY_SIZE];
     int waitingForKeyIndex = -1; // -1 means we aren't waiting
+    std::unique_ptr<State[]> history;
+    int historyHead = 0;
+    int historyCount = 0;
 
     Settings settings;
-
-
 };

@@ -29,10 +29,11 @@ uint8_t keymap[16] = {
 };
 
 void drawRegisters(WINDOW *win, const Chip8::State &state);
-void drawSettings(WINDOW* win, const Chip8::Settings& settings);
+void drawSettings(WINDOW* win, const Chip8::Settings& settings, int historyCount);
 void drawStack(WINDOW *win, const Chip8::State &state);
 void drawDissassembly(WINDOW* win, const Chip8::State& state);
-
+void drawHeatmap(WINDOW* win, const Chip8::State& state);
+void drawKeys(WINDOW* win);
 
 int main(int argc, const char** argv) {
     try{
@@ -54,13 +55,20 @@ int main(int argc, const char** argv) {
         curs_set(0);
         nodelay(stdscr, true);
         keypad(stdscr, true);
+        start_color();
+        use_default_colors();
+        init_pair(1, COLOR_BLUE,    -1);  // cold  (1–5 hits)
+        init_pair(2, COLOR_CYAN,    -1);  // warm  (6–20 hits)
+        init_pair(3, COLOR_YELLOW,  -1);  // hot   (21–100 hits)
+        init_pair(4, COLOR_RED,     -1);  // fire  (100+ hits)
 
         WINDOW* displayWin = newwin(34, 66, 0, 0);
         WINDOW* regWin = newwin(15, 26, 0, 66);
         WINDOW* stackWin = newwin(12, 26, 15, 66);
         WINDOW* settingsWin = newwin(7, 26, 27, 66);
-        WINDOW* disWin = newwin(14, 50, 34, 0);
-        WINDOW* memWin = newwin(14, 50, 34, 50);
+        WINDOW* disWin = newwin(14, 32, 34, 0);
+        WINDOW* memWin = newwin(14, 60, 34, 32);
+        WINDOW* keysWin = newwin(3, 92, 48, 0);
         refresh();
         
         wnoutrefresh(displayWin);
@@ -69,8 +77,10 @@ int main(int argc, const char** argv) {
         wnoutrefresh(settingsWin);
         wnoutrefresh(disWin);
         wnoutrefresh(memWin);
+        wnoutrefresh(keysWin);
         box(displayWin, 0, 0); 
-        //wnoutrefresh(displayWin);
+        box(memWin, 0, 0);
+
         doupdate();
         int key_timer[16] = {0}; // acts as a latch for the key
         
@@ -82,12 +92,11 @@ int main(int argc, const char** argv) {
                 chip8.Stop(); 
                 break;
             } else if (c == KEY_F(6)) chip8.TogglePaused();
-            else if (c == KEY_F(5) && chip8.IsPaused()) chip8.Cycle();
-            else if (c == KEY_F(8)){ // reset
-                chip8.Restart();
-            }else if (c == KEY_F(9)){
-                chip8.ToggleLog(logFile);
-            }else if (c != ERR) {
+            else if (c == KEY_F(7) && chip8.IsPaused()) chip8.Cycle();
+            else if (c == KEY_F(5) && chip8.IsPaused()) chip8.StepBack(); // 
+            else if (c == KEY_F(8)) chip8.Restart();
+            else if (c == KEY_F(9)) chip8.ToggleLog(logFile);
+            else if (c != ERR) {
                 for (int i = 0; i < 16; ++i) { // handling the input
                     if (c == keymap[i]) {
                         chip8.SetKey(i, 1);
@@ -119,9 +128,10 @@ int main(int argc, const char** argv) {
             
             drawRegisters(regWin, chip8.GetState());
             drawStack(stackWin, chip8.GetState());
-            drawSettings(settingsWin, chip8.GetState().settings);
+            drawSettings(settingsWin, chip8.GetState().settings, chip8.HistoryCount());
             drawDissassembly(disWin, chip8.GetState());
-
+            drawHeatmap(memWin, chip8.GetState());
+            drawKeys(keysWin);
             if (chip8.ShouldRender() || chip8.ShouldRestart()){
                 box(displayWin, 0, 0); 
                 const uint8_t *display = chip8.GetDisplay();
@@ -225,7 +235,7 @@ void drawStack(WINDOW *win, const Chip8::State &state){
     wnoutrefresh(win);
 }
 
-void drawSettings(WINDOW* win, const Chip8::Settings& settings){
+void drawSettings(WINDOW* win, const Chip8::Settings& settings, int historyCount){
     werase(win);
     box(win, 0, 0);
 
@@ -243,14 +253,14 @@ void drawSettings(WINDOW* win, const Chip8::Settings& settings){
     mvwprintw(win, 3, 14, "L: %s", logStatus.c_str());
     mvwprintw(win, 4, 14, "VF: %s", vfStatus.c_str());
     mvwprintw(win, 5, 14, "W: %s", wrapStatus.c_str());
-
+    mvwprintw(win, 2, 8, "HIST: %d/600", historyCount);
     wnoutrefresh(win);
 }
 
 void drawDissassembly(WINDOW* win, const Chip8::State& state){
     werase(win);
     box(win ,0 ,0);
-    mvwprintw(win, 1 , 2, "--- DISASSEMBLY ---");
+    mvwprintw(win, 1 , 6, "--- DISASSEMBLY ---");
     int y = 3;
     for (int i = -2; i <= 7; i++){
         uint16_t addr = state.pc + i * 2;
@@ -273,8 +283,73 @@ void drawDissassembly(WINDOW* win, const Chip8::State& state){
     wnoutrefresh(win);
 }
 
+void drawHeatmap(WINDOW* win, const Chip8::State& state) {
+    werase(win);
+    box(win, 0, 0);
+    mvwprintw(win, 1, 18, "--- HEATMAP (0x200+) ---");
 
+    const int ROWS = 11;
+    const int COLS = 53;
 
+    for (int row = 0; row < ROWS; row++) {
+        uint16_t rowAddr = 0x200 + row * COLS * 2;
+        mvwprintw(win, row + 2, 1, "%03X:", rowAddr);
 
+        for (int col = 0; col < COLS; col++) {
+            uint16_t addr = 0x200 + (row * COLS + col) * 2;
+            if (addr + 1 >= 0xFFF) break;
 
+            uint32_t heat = state.heatmap[addr];
 
+            char symbol;
+            int colorPair;
+            int attr = A_NORMAL;
+
+            if (heat == 0) {
+                symbol = '.';
+                colorPair = 0;
+                attr = A_DIM;
+            } else if (heat <= 5) {
+                symbol = '+';
+                colorPair = 1;
+            } else if (heat <= 20) {
+                symbol = '#';
+                colorPair = 2;
+            } else if (heat <= 100) {
+                symbol = '%';
+                colorPair = 3;
+            } else {
+                symbol = '@';
+                colorPair = 4;
+                attr = A_BOLD;
+            }
+
+            if (colorPair > 0) wattron(win, COLOR_PAIR(colorPair) | attr);
+            else wattron(win, attr);
+
+            mvwaddch(win, row + 2, col + 6, symbol);
+
+            if (colorPair > 0) wattroff(win, COLOR_PAIR(colorPair) | attr);
+            else wattroff(win, attr);
+        }
+    }
+
+    wattron(win, COLOR_PAIR(1)); mvwprintw(win, 13, 2,  "+ cold"); wattroff(win, COLOR_PAIR(1));
+    wattron(win, COLOR_PAIR(2)); mvwprintw(win, 13, 10, "# warm"); wattroff(win, COLOR_PAIR(2));
+    wattron(win, COLOR_PAIR(3)); mvwprintw(win, 13, 18, "%% hot");  wattroff(win, COLOR_PAIR(3));
+    wattron(win, COLOR_PAIR(4) | A_BOLD); mvwprintw(win, 13, 26, "@ fire"); wattroff(win, COLOR_PAIR(4) | A_BOLD);
+
+    wnoutrefresh(win);
+}
+
+void drawKeys(WINDOW* win) {
+    werase(win);
+    box(win, 0, 0);
+    mvwprintw(win, 1, 2,  "[F5] Step Back");
+    mvwprintw(win, 1, 17, "[F6] Pause/Play");
+    mvwprintw(win, 1, 34, "[F7] Step Fwd");
+    mvwprintw(win, 1, 50, "[F8] Reset");
+    mvwprintw(win, 1, 62, "[F9] Toggle Log");
+    mvwprintw(win, 1, 79, "[ESC] Quit");
+    wnoutrefresh(win);
+}
