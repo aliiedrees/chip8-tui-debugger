@@ -1,1 +1,0 @@
-CPU Fault: Attempted to execute unknown instruction [0xE9A1]

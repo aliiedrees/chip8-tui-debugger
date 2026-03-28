@@ -4,3 +4,4 @@ main.o
 Chip8.o
 obj/*
 trace.log
+crash_log.txt
