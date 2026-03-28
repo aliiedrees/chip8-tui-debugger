@@ -1,0 +1,25 @@
+Documentation Notes
+===================
+
+1.  SELF DOCUMENITING NOTES
+    - best comment is the comment u don't need to write like instead of using a random name 
+    for some var, give it a self explantory name;
+    - using functions with explaining name is better than random written code;
+
+2. EXPLAIN WHY AND NOT HOW
+
+3. USE DOXYGEN COMMENT BLOCK
+    - structure:
+        - /** : this tells the compiler to ignore the text but tells the doxygen to capture it for
+                the manual.
+        - @brief : A one sentence summary. think of it as the title of the function.
+        - @details: the paragraph that explain the logic.
+        - @param : maps the technical var name to human explanation.
+        - @return : what the caller should expect a return.
+        - @note / @warning : this create  a highlited box to draw attention to  critical behaviour.
+    - these structures are written in the .h/.hpp file
+    - can be written in the cpp files but preferred to write there just for helper functions.
+    RULE OF THUMB: if a function is public, document it in the header.
+    - for every public class member it is recommended to have a comment in the header.
+    - for every complex logic it is recommended to have a comment.
+    
